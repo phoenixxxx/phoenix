@@ -1,4 +1,5 @@
 #pragma once
+#include <vector>
 #include <Utils/Singleton.h>
 #include <Utils/Types.h>
 
