@@ -90,12 +90,14 @@ file(GLOB TINYEXR_SRC "${THIRDPARTY_DIR}/tinyexr/*.h")
 source_group("ThirdParty/tinyexr" FILES ${TINYEXR_SRC})
 file(GLOB TINYOBJLOADER_SRC "${THIRDPARTY_DIR}/tinyobjloader/*.cc" "${THIRDPARTY_DIR}/tinyobjloader/*.h")
 source_group("ThirdParty/tinyobjloader" FILES ${TINYOBJLOADER_SRC})
+file(GLOB TINYXML2_SRC "${THIRDPARTY_DIR}/tinyxml2/*.cpp" "${THIRDPARTY_DIR}/tinyxml2/*.h")
+source_group("ThirdParty/tinyxml2" FILES ${TINYXML2_SRC})
 
 add_executable(${PROJECT_NAME} WIN32 ${BVH_SRC} ${BVHLIGHTING_SRC} ${CAMERA_SRC} 
 ${D3D11_SRC} ${D3D11LINERENDERER_SRC} ${D3D11MESHRENDERER_SRC} 
 ${IMAGE_SRC} ${MATERIAL_SRC} ${SCENARIO_SRC} ${SHARED_GPU_CPU_SRC} ${SKYILLUM_SRC} 
 ${UTILS_SRC} ${WINDOW_SRC} 
-${IMGUI_SRC} ${JSON_SRC} ${MINIZ_SRC} ${SKY_SRC} ${STBIMAGE_SRC} ${TINYEXR_SRC} ${TINYOBJLOADER_SRC}
+${IMGUI_SRC} ${JSON_SRC} ${MINIZ_SRC} ${SKY_SRC} ${STBIMAGE_SRC} ${TINYEXR_SRC} ${TINYOBJLOADER_SRC} ${TINYXML2_SRC}
 main.cpp)
 
 # Set compiler flags and options. 

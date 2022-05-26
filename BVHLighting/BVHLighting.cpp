@@ -81,7 +81,6 @@ namespace Phoenix
 		node.mLeafData = INVALID_INDEX;
 		node.mLeftChild = INVALID_INDEX;
 		node.mRightChild = INVALID_INDEX;
-		node.mParent = parent;
 
 		//node->mBox = volumesBounds;
 		node.mBoxMin = float4(volumesBounds.mMin, 1);

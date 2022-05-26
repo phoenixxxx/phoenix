@@ -11,7 +11,7 @@ namespace Phoenix
 		BVHNodeIndex rootRef = 0;
 		switch (policy)
 		{
-		case eSurfaceAreaHuristic:
+		case eSurfaceAreaHeuristic:
 		{
 			rootRef = CreateVolumesSAH(0, uint32_t(items.size()), items);
 		}
@@ -54,7 +54,6 @@ namespace Phoenix
 		node.mLeafData = INVALID_INDEX;
 		node.mLeftChild = INVALID_INDEX;
 		node.mRightChild = INVALID_INDEX;
-		node.mParent = INVALID_INDEX;
 		node.mBoxMin = float4(volumesBounds.mMin, 1);
 		node.mBoxMax = float4(volumesBounds.mMax, 1);
 		//if we reached the desired leaf node size, store it and bail

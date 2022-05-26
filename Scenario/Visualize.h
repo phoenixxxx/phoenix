@@ -45,39 +45,38 @@ namespace Phoenix
 
 		struct Mesh
 		{
-			Mesh():mBVHVisible(false), mVisible(true), mBVHShowOnlyLeaves(true) {}
-			Mesh( Mesh&& rhs) noexcept
-			{ 
-				mVertexBuffer = std::move(rhs.mVertexBuffer);
-				mIndexBuffer = std::move(rhs.mIndexBuffer);
-				mName = std::move(rhs.mName);
-
-				mBVHVisible = rhs.mBVHVisible;
-				mVisible = rhs.mVisible;
-				mBVHShowOnlyLeaves = rhs.mBVHShowOnlyLeaves;
-				mMaterialIndex = rhs.mMaterialIndex;
+			Mesh():mBVHVisible(false), mVisible(true), mBVHShowOnlyLeaves(true), mVertexCount(0), mFaceCount(0)
+			{
 			}
-			std::vector<Vertex> mVertexBuffer;
-			std::vector<int3> mIndexBuffer;
 			uint32_t mMaterialIndex;
 			stdstr_t mName;
+
+			MeshEntry mEntry;
+
+			uint32_t mAABBCount;
+			uint32_t mVertexCount;
+			uint32_t mFaceCount;
 			bool mBVHVisible;
 			bool mBVHShowOnlyLeaves;
 			bool mVisible;
 		};
-		float RayBVHIntersect(const Ray& ray, const BVH& bvh, Mesh& mesh, float3& p, float3& n);
+		float RayBVHIntersect(const Ray& ray, uint64_t instanceIndex, float3& p, float3& n);
+
+		std::vector<Vertex> mVertexBuffer;
+		std::vector<int3> mIndexBuffer;
+		std::vector<GPUBVHNode> mBottomLevels;
+		std::vector<GPUBVHNode> mTopLevel;
 
 		std::vector<Mesh> mMeshes;
-		std::vector<BVH>  mBVHs;
+
+		std::vector<Instance> mInstances;
+
+
 		BVHLighting mBVHLighting;
 		bool mShowBVHLighting;
 		AABB mLightingAABB;
 
-
-		std::vector<tinyobj::material_t> materials;
-		std::vector<uint32_t> materialsIsMetallic;
-		std::vector<float> materialsEmissionIntensity;
-		std::map<stdstr_t, Image*> mMaps;
+		std::vector<AABB> mInstanceVolumes;
 
 		struct 
 		{
@@ -99,6 +98,7 @@ namespace Phoenix
 
 		struct
 		{
+			uint64_t mHitInstanceIndex;
 			Ray mRay;
 			bool mHit;
 			float3 mPoint;

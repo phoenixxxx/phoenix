@@ -14,12 +14,16 @@
 #include <Material/Material.h>
 #include <Utils/CSVDocument.h>
 #include <Utils/CPUTimer.h>
+#include <Utils/BlockIO.h>
 #include <map>
+#include <filesystem>
 #include <D3D11MeshRenderer/D3D11MeshRenderer.h>
+
+#include <ThirdParty/tinyxml2/tinyxml2.h>
 
 namespace Phoenix
 {
-	static stdstr_t GetFile(cstr_t filter, bool load=true)
+	static std::filesystem::path GetFile(cstr_t filter, bool load=true)
 	{
 		stdstr_t fileName;
 
@@ -298,6 +302,7 @@ namespace Phoenix
 
 	void Visualize::RebuildLighting()
 	{
+#if 0
 		CPUTimer tm;
 		tm.Start();
 		{
@@ -367,28 +372,40 @@ namespace Phoenix
 		}
 		tm.Stop();
 		Console::Instance()->Log(Console::LogType::eInfo, "Lighting BVH building time: %d [ms]\n", (int)tm.GetMilliseconds());
+#endif
 	}
 
 	void Visualize::RebuildBVHs()
 	{
 		CPUTimer tm;
 		tm.Start();
-		mBVHs.clear();
+		mBottomLevels.clear();
+		mTopLevel.clear();
+		mInstances.clear();
+		mInstanceVolumes.clear();
+
 		std::vector<BVH::ConstructionItem> itemsMemory;
 		std::vector<BVH::ConstructionItem*> items;
+		BVH bvhBuilder;
+		uint64_t bvhOffset = 0;
+
+		std::vector<AABB> topLvlVolumes;
 		for (auto& mesh : mMeshes)
 		{
-			BVH bvh;
-
-			itemsMemory.resize(mesh.mIndexBuffer.size());
-			items.resize(mesh.mIndexBuffer.size());
+			itemsMemory.resize(mesh.mFaceCount);// mesh.mIndexBuffer.size());
+			items.resize(mesh.mFaceCount);// mesh.mIndexBuffer.size());
 			uint32_t faceIndex = 0;
 
-			for (auto& face : mesh.mIndexBuffer)
+			//get the subpart of the index and vertex buffers for this particular mesh
+			const int3* meshIndexBuffer = &(mIndexBuffer[mesh.mEntry.mIndexOffset]);
+			const Vertex* meshVertexBuffer = &(mVertexBuffer[mesh.mEntry.mVertexOffset]);
+			for (uint32_t iFace = 0; iFace < mesh.mFaceCount; ++iFace)
 			{
-				auto& v0 = mesh.mVertexBuffer[face.x];
-				auto& v1 = mesh.mVertexBuffer[face.y];
-				auto& v2 = mesh.mVertexBuffer[face.z];
+				const int3& face = meshIndexBuffer[iFace];
+
+				auto& v0 = meshVertexBuffer[face.x];
+				auto& v1 = meshVertexBuffer[face.y];
+				auto& v2 = meshVertexBuffer[face.z];
 
 				float3 p0 = v0.mPosition;
 				float3 p1 = v1.mPosition;
@@ -405,12 +422,52 @@ namespace Phoenix
 				faceIndex++;
 			}
 			AABB rootVolume;
-			BVHNodeIndex rootIndex = bvh.CreateVolumes(rootVolume, items, BVH::eSurfaceAreaHuristic);
+			bvhBuilder.Clear();
+			mesh.mEntry.mRootBVH = bvhOffset;
+			bvhBuilder.CreateVolumes(rootVolume, items, BVH::eSurfaceAreaHeuristic);
+			mesh.mAABBCount = bvhBuilder.GetNodes().size();
+			mBottomLevels.insert(mBottomLevels.end(), bvhBuilder.GetNodes().begin(), bvhBuilder.GetNodes().end());
+			topLvlVolumes.push_back(rootVolume);
 
-			mBVHs.push_back(std::move(bvh));
+			bvhOffset += mesh.mAABBCount;
 		}
 		tm.Stop();
-		Console::Instance()->Log(Console::LogType::eInfo, "%d BVH(s) building time: %d [ms]\n", mBVHs.size(), (int)tm.GetMilliseconds());
+		Console::Instance()->Log(Console::LogType::eInfo, "Bottom level BVH building time: %d [ms]\n", (int)tm.GetMilliseconds());
+
+		tm.Start();
+		itemsMemory.resize(topLvlVolumes.size());
+		items.resize(topLvlVolumes.size());
+		uint32_t instanceIndex = 0;
+
+		for (auto &aabb : topLvlVolumes)
+		{
+			//for right now, just ID
+			float4x4 identity;
+			float4x4::MakeIdentity(identity);
+
+			const float3& a = identity.TransformPoint(aabb.mMin);
+			const float3& b = identity.TransformPoint(aabb.mMax);
+			AABB transformedVolume;
+			transformedVolume += a;
+			transformedVolume += b;
+
+			items[instanceIndex] = &itemsMemory[instanceIndex];//saves us the small allocs
+
+			items[instanceIndex]->mBox = transformedVolume;
+			items[instanceIndex]->mCentroid = items[instanceIndex]->mBox.Centroid();
+			items[instanceIndex]->mLeafData = instanceIndex;
+
+			mInstances.push_back({ identity, identity, identity, instanceIndex });
+			mInstanceVolumes.push_back(transformedVolume);
+
+			instanceIndex++;
+		}
+		AABB rootVolume;
+		bvhBuilder.Clear();
+		BVHNodeIndex rootIndex = bvhBuilder.CreateVolumes(rootVolume, items, BVH::eSurfaceAreaHeuristic);
+		mTopLevel = bvhBuilder.GetNodes();
+		tm.Stop();
+		Console::Instance()->Log(Console::LogType::eInfo, "Top level BVH building time: %d [ms]\n", (int)tm.GetMilliseconds());
 	}
 
 	void Visualize::SceneExportHander()
@@ -418,138 +475,164 @@ namespace Phoenix
 		const auto& filename = GetFile(".bin", false);
 		if (!filename.empty())
 		{
-
+			
 		}
 	}
 
 	void Visualize::FileLoadHandler()
 	{
-		const auto& filename = GetFile("obj\0*.OBJ\0");
+		const auto& filename = GetFile("obj\0*.OBJ\0mtlx\0*.MTLX");
 		if (!filename.empty())
 		{
-			std::string warn;
-			std::string err;
-
-			tinyobj::attrib_t inattrib;
-			std::vector<tinyobj::shape_t> inshapes;
-
-			CPUTimer tm;
-			tm.Start();
-			bool ret = tinyobj::LoadObj(&inattrib, &inshapes, &materials, &warn, &err, filename.c_str(), nullptr, true);
-			bool regen_all_normals = inattrib.normals.size() == 0;
-			tinyobj::attrib_t outattrib;
-			std::vector<tinyobj::shape_t> outshapes;
-			if (regen_all_normals) {
-				computeSmoothingShapes(inattrib, inshapes, outshapes, outattrib);
-				computeAllSmoothingNormals(outattrib, outshapes);
-			}
-			std::vector<tinyobj::shape_t>& shapes = regen_all_normals ? outshapes : inshapes;
-			tinyobj::attrib_t& attrib = regen_all_normals ? outattrib : inattrib;
-
-			tm.Stop();
-			Console::Instance()->Log(Console::LogType::eInfo, "%s Parsing time: %d [ms]\n", filename.c_str(), (int)tm.GetMilliseconds());
-
-			Console::Instance()->Log(Console::LogType::eInfo, "vertices  = %d\n", (int)(inattrib.vertices.size()) / 3);
-			Console::Instance()->Log(Console::LogType::eInfo, "normals   = %d\n", (int)(inattrib.normals.size()) / 3);
-			Console::Instance()->Log(Console::LogType::eInfo, "texcoords = %d\n", (int)(inattrib.texcoords.size()) / 2);
-			Console::Instance()->Log(Console::LogType::eInfo, "materials = %d\n", (int)materials.size());
-			Console::Instance()->Log(Console::LogType::eInfo, "shapes    = %d\n", (int)inshapes.size());
-
-			if (!warn.empty())
-				Console::Instance()->Log(Console::LogType::eWarning, "%s\n", warn.c_str());
-			if (!err.empty())
-				Console::Instance()->Log(Console::LogType::eError, "%s\n", err.c_str());
-
-			// Append `default` material
-			materials.push_back(tinyobj::material_t());
-			uint32_t iMat = 0;
-			for (auto& mat : materials)
+			if ((filename.extension() == ".mtlx") || (filename.extension() == ".MTLX"))
 			{
-				if (mat.name.empty())
-				{
-					static char matName[128];
-					sprintf(matName, "Material.%d", iMat++);
-					mat.name = matName;
-				}
+				tinyxml2::XMLDocument doc;
+				doc.LoadFile(filename.string().c_str());
+				auto err = doc.ErrorID();
 
-				materialsIsMetallic.push_back(bool(mat.metallic > 0));
-				materialsEmissionIntensity.push_back(1.0f);
+				tinyxml2::XMLElement* titleElement = doc.FirstChildElement("materialx");
 			}
-
-			std::map<stdstr_t, uint32_t> nameMap;
-
-			//iterate over the shapes
-			float3 bmin, bmax;
-			bmin[0] = bmin[1] = bmin[2] = std::numeric_limits<float>::max();
-			bmax[0] = bmax[1] = bmax[2] = -std::numeric_limits<float>::max();
-			for (size_t s = 0; s < shapes.size(); s++)
+			if ((filename.extension() == ".OBJ") || (filename.extension() == ".obj"))
 			{
+				std::string warn;
+				std::string err;
 
-				// Check for smoothing group and compute smoothing normals
-				std::map<int, float3> smoothVertexNormals;
-				if (!regen_all_normals && (hasSmoothingGroup(shapes[s]) > 0))
-				{
-					Console::Instance()->Log(Console::LogType::eInfo, "Compute smoothingNormal for shape [%d]", s);
-					computeSmoothingNormals(attrib, shapes[s], smoothVertexNormals);
-				}
+				tinyobj::attrib_t inattrib;
+				std::vector<tinyobj::shape_t> inshapes;
+				std::vector<tinyobj::material_t> materials;
 
-				//iterate over indices
-				Mesh mesh;
-				const auto& nameIter = nameMap.find(shapes[s].name);
-				if (nameIter == nameMap.end())
-				{
-					nameMap[shapes[s].name] = 2;
-					mesh.mName = shapes[s].name;
+				CPUTimer tm;
+				tm.Start();
+				bool ret = tinyobj::LoadObj(&inattrib, &inshapes, &materials, &warn, &err, filename.string().c_str(), nullptr, true);
+				bool regen_all_normals = inattrib.normals.size() == 0;
+				tinyobj::attrib_t outattrib;
+				std::vector<tinyobj::shape_t> outshapes;
+				if (regen_all_normals) {
+					computeSmoothingShapes(inattrib, inshapes, outshapes, outattrib);
+					computeAllSmoothingNormals(outattrib, outshapes);
 				}
-				else
-				{
-					char str[1024];
-					sprintf(str, "%s.%d", shapes[s].name.c_str(), nameIter->second);
-					mesh.mName = str;
-					nameMap[shapes[s].name]++;
-				}
+				std::vector<tinyobj::shape_t>& shapes = regen_all_normals ? outshapes : inshapes;
+				tinyobj::attrib_t& attrib = regen_all_normals ? outattrib : inattrib;
 
-				auto cmp = [](const tinyobj::index_t& lhs, const tinyobj::index_t& rhs)->bool
+				tm.Stop();
+				Console::Instance()->Log(Console::LogType::eInfo, "%s Parsing time: %d [ms]\n", filename.c_str(), (int)tm.GetMilliseconds());
+
+				Console::Instance()->Log(Console::LogType::eInfo, "vertices  = %d\n", (int)(inattrib.vertices.size()) / 3);
+				Console::Instance()->Log(Console::LogType::eInfo, "normals   = %d\n", (int)(inattrib.normals.size()) / 3);
+				Console::Instance()->Log(Console::LogType::eInfo, "texcoords = %d\n", (int)(inattrib.texcoords.size()) / 2);
+				Console::Instance()->Log(Console::LogType::eInfo, "materials = %d\n", (int)materials.size());
+				Console::Instance()->Log(Console::LogType::eInfo, "shapes    = %d\n", (int)inshapes.size());
+
+				if (!warn.empty())
+					Console::Instance()->Log(Console::LogType::eWarning, "%s\n", warn.c_str());
+				if (!err.empty())
+					Console::Instance()->Log(Console::LogType::eError, "%s\n", err.c_str());
+
+				std::map<stdstr_t, uint32_t> nameMap;
+
+				uint32_t vertexOffset = 0;
+				uint32_t indexOffset = 0;
+				//iterate over the shapes
+				float3 bmin, bmax;
+				bmin[0] = bmin[1] = bmin[2] = std::numeric_limits<float>::max();
+				bmax[0] = bmax[1] = bmax[2] = -std::numeric_limits<float>::max();
+				for (size_t s = 0; s < shapes.size(); s++)
 				{
-					if (lhs.vertex_index == rhs.vertex_index)
+					Mesh mesh;
+
+					// Check for smoothing group and compute smoothing normals
+					std::map<int, float3> smoothVertexNormals;
+					if (!regen_all_normals && (hasSmoothingGroup(shapes[s]) > 0))
 					{
-						if (lhs.normal_index == rhs.normal_index)
-						{
-							return (lhs.texcoord_index < rhs.texcoord_index);
-						}
-						else
-							return (lhs.normal_index < rhs.normal_index);
+						Console::Instance()->Log(Console::LogType::eInfo, "Compute smoothingNormal for shape [%d]", s);
+						computeSmoothingNormals(attrib, shapes[s], smoothVertexNormals);
+					}
+
+					//iterate over indices
+					const auto& nameIter = nameMap.find(shapes[s].name);
+					if (nameIter == nameMap.end())
+					{
+						nameMap[shapes[s].name] = 2;
+						mesh.mName = shapes[s].name;
 					}
 					else
 					{
-						return (lhs.vertex_index < rhs.vertex_index);
+						char str[1024];
+						sprintf(str, "%s.%d", shapes[s].name.c_str(), nameIter->second);
+						mesh.mName = str;
+						nameMap[shapes[s].name]++;
 					}
-				};
-				std::map<tinyobj::index_t, int, decltype(cmp)> remap(cmp);
-				for (size_t f = 0; f < shapes[s].mesh.indices.size() / 3; f++)
-				{
-					tinyobj::index_t idx0 = shapes[s].mesh.indices[3 * f + 0];
-					tinyobj::index_t idx1 = shapes[s].mesh.indices[3 * f + 1];
-					tinyobj::index_t idx2 = shapes[s].mesh.indices[3 * f + 2];
 
-					int current_material_id = shapes[s].mesh.material_ids[f];
-					if ((current_material_id < 0) ||
-						(current_material_id >= static_cast<int>(materials.size())))
+					auto cmp = [](const tinyobj::index_t& lhs, const tinyobj::index_t& rhs)->bool
 					{
-						// Invalid material ID. Use default material.
-						current_material_id =
-							materials.size() -
-							1;  // Default material is added to the last item in `materials`.
-					}
-					mesh.mMaterialIndex = current_material_id;
-#pragma region TexCoords
-					float4 tc[3] = { {0} };
-					if (attrib.texcoords.size() > 0)
-					{
-						if ((idx0.texcoord_index < 0) || (idx1.texcoord_index < 0) ||
-							(idx2.texcoord_index < 0))
+						if (lhs.vertex_index == rhs.vertex_index)
 						{
-							// face does not contain valid uv index.
+							if (lhs.normal_index == rhs.normal_index)
+							{
+								return (lhs.texcoord_index < rhs.texcoord_index);
+							}
+							else
+								return (lhs.normal_index < rhs.normal_index);
+						}
+						else
+						{
+							return (lhs.vertex_index < rhs.vertex_index);
+						}
+					};
+					std::map<tinyobj::index_t, int, decltype(cmp)> remap(cmp);
+
+
+					for (size_t f = 0; f < shapes[s].mesh.indices.size() / 3; f++)
+					{
+						tinyobj::index_t idx0 = shapes[s].mesh.indices[3 * f + 0];
+						tinyobj::index_t idx1 = shapes[s].mesh.indices[3 * f + 1];
+						tinyobj::index_t idx2 = shapes[s].mesh.indices[3 * f + 2];
+
+						int current_material_id = shapes[s].mesh.material_ids[f];
+						if ((current_material_id < 0) ||
+							(current_material_id >= static_cast<int>(materials.size())))
+						{
+							// Invalid material ID. Use default material.
+							current_material_id =
+								materials.size() -
+								1;  // Default material is added to the last item in `materials`.
+						}
+						mesh.mMaterialIndex = current_material_id;
+#pragma region TexCoords
+						float4 tc[3] = { {0} };
+						if (attrib.texcoords.size() > 0)
+						{
+							if ((idx0.texcoord_index < 0) || (idx1.texcoord_index < 0) ||
+								(idx2.texcoord_index < 0))
+							{
+								// face does not contain valid uv index.
+								tc[0][0] = 0.0f;
+								tc[0][1] = 0.0f;
+								tc[1][0] = 0.0f;
+								tc[1][1] = 0.0f;
+								tc[2][0] = 0.0f;
+								tc[2][1] = 0.0f;
+							}
+							else
+							{
+								assert(attrib.texcoords.size() >
+									size_t(2 * idx0.texcoord_index + 1));
+								assert(attrib.texcoords.size() >
+									size_t(2 * idx1.texcoord_index + 1));
+								assert(attrib.texcoords.size() >
+									size_t(2 * idx2.texcoord_index + 1));
+
+								// Flip Y coord.
+								tc[0][0] = attrib.texcoords[2 * idx0.texcoord_index];
+								tc[0][1] = 1.0f - attrib.texcoords[2 * idx0.texcoord_index + 1];
+								tc[1][0] = attrib.texcoords[2 * idx1.texcoord_index];
+								tc[1][1] = 1.0f - attrib.texcoords[2 * idx1.texcoord_index + 1];
+								tc[2][0] = attrib.texcoords[2 * idx2.texcoord_index];
+								tc[2][1] = 1.0f - attrib.texcoords[2 * idx2.texcoord_index + 1];
+							}
+						}
+						else
+						{
 							tc[0][0] = 0.0f;
 							tc[0][1] = 0.0f;
 							tc[1][0] = 0.0f;
@@ -557,170 +640,152 @@ namespace Phoenix
 							tc[2][0] = 0.0f;
 							tc[2][1] = 0.0f;
 						}
-						else
-						{
-							assert(attrib.texcoords.size() >
-								size_t(2 * idx0.texcoord_index + 1));
-							assert(attrib.texcoords.size() >
-								size_t(2 * idx1.texcoord_index + 1));
-							assert(attrib.texcoords.size() >
-								size_t(2 * idx2.texcoord_index + 1));
-
-							// Flip Y coord.
-							tc[0][0] = attrib.texcoords[2 * idx0.texcoord_index];
-							tc[0][1] = 1.0f - attrib.texcoords[2 * idx0.texcoord_index + 1];
-							tc[1][0] = attrib.texcoords[2 * idx1.texcoord_index];
-							tc[1][1] = 1.0f - attrib.texcoords[2 * idx1.texcoord_index + 1];
-							tc[2][0] = attrib.texcoords[2 * idx2.texcoord_index];
-							tc[2][1] = 1.0f - attrib.texcoords[2 * idx2.texcoord_index + 1];
-						}
-					}
-					else
-					{
-						tc[0][0] = 0.0f;
-						tc[0][1] = 0.0f;
-						tc[1][0] = 0.0f;
-						tc[1][1] = 0.0f;
-						tc[2][0] = 0.0f;
-						tc[2][1] = 0.0f;
-					}
 #pragma endregion
 #pragma region Positions
-					float4 v[3];
-					for (int k = 0; k < 3; k++)
-					{
-						int f0 = idx0.vertex_index;
-						int f1 = idx1.vertex_index;
-						int f2 = idx2.vertex_index;
-						assert(f0 >= 0);
-						assert(f1 >= 0);
-						assert(f2 >= 0);
-
-						v[0][k] = attrib.vertices[3 * f0 + k];
-						v[1][k] = attrib.vertices[3 * f1 + k];
-						v[2][k] = attrib.vertices[3 * f2 + k];
-						bmin[k] = std::min(v[0][k], bmin[k]);
-						bmin[k] = std::min(v[1][k], bmin[k]);
-						bmin[k] = std::min(v[2][k], bmin[k]);
-						bmax[k] = std::max(v[0][k], bmax[k]);
-						bmax[k] = std::max(v[1][k], bmax[k]);
-						bmax[k] = std::max(v[2][k], bmax[k]);
-					}
-#pragma endregion
-#pragma region Normals
-					float4 n[3] = { {0,0,0,0}, {0,0,0,0} , {0,0,0,0} };
-					{
-						bool invalid_normal_index = false;
-						if (attrib.normals.size() > 0)
+						float4 v[3];
+						for (int k = 0; k < 3; k++)
 						{
-							int nf0 = idx0.normal_index;
-							int nf1 = idx1.normal_index;
-							int nf2 = idx2.normal_index;
-
-							if ((nf0 < 0) || (nf1 < 0) || (nf2 < 0))
-							{
-								// normal index is missing from this face.
-								invalid_normal_index = true;
-							}
-							else
-							{
-								for (int k = 0; k < 3; k++)
-								{
-									assert(size_t(3 * nf0 + k) < attrib.normals.size());
-									assert(size_t(3 * nf1 + k) < attrib.normals.size());
-									assert(size_t(3 * nf2 + k) < attrib.normals.size());
-									n[0][k] = attrib.normals[3 * nf0 + k];
-									n[1][k] = attrib.normals[3 * nf1 + k];
-									n[2][k] = attrib.normals[3 * nf2 + k];
-								}
-							}
-						}
-						else
-						{
-							invalid_normal_index = true;
-						}
-
-						if (invalid_normal_index && !smoothVertexNormals.empty())
-						{
-							// Use smoothing normals
 							int f0 = idx0.vertex_index;
 							int f1 = idx1.vertex_index;
 							int f2 = idx2.vertex_index;
+							assert(f0 >= 0);
+							assert(f1 >= 0);
+							assert(f2 >= 0);
 
-							if (f0 >= 0 && f1 >= 0 && f2 >= 0)
+							v[0][k] = attrib.vertices[3 * f0 + k];
+							v[1][k] = attrib.vertices[3 * f1 + k];
+							v[2][k] = attrib.vertices[3 * f2 + k];
+							bmin[k] = std::min(v[0][k], bmin[k]);
+							bmin[k] = std::min(v[1][k], bmin[k]);
+							bmin[k] = std::min(v[2][k], bmin[k]);
+							bmax[k] = std::max(v[0][k], bmax[k]);
+							bmax[k] = std::max(v[1][k], bmax[k]);
+							bmax[k] = std::max(v[2][k], bmax[k]);
+						}
+#pragma endregion
+#pragma region Normals
+						float4 n[3] = { {0,0,0,0}, {0,0,0,0} , {0,0,0,0} };
+						{
+							bool invalid_normal_index = false;
+							if (attrib.normals.size() > 0)
 							{
-								n[0][0] = smoothVertexNormals[f0].m[0];
-								n[0][1] = smoothVertexNormals[f0].m[1];
-								n[0][2] = smoothVertexNormals[f0].m[2];
+								int nf0 = idx0.normal_index;
+								int nf1 = idx1.normal_index;
+								int nf2 = idx2.normal_index;
 
-								n[1][0] = smoothVertexNormals[f1].m[0];
-								n[1][1] = smoothVertexNormals[f1].m[1];
-								n[1][2] = smoothVertexNormals[f1].m[2];
+								if ((nf0 < 0) || (nf1 < 0) || (nf2 < 0))
+								{
+									// normal index is missing from this face.
+									invalid_normal_index = true;
+								}
+								else
+								{
+									for (int k = 0; k < 3; k++)
+									{
+										assert(size_t(3 * nf0 + k) < attrib.normals.size());
+										assert(size_t(3 * nf1 + k) < attrib.normals.size());
+										assert(size_t(3 * nf2 + k) < attrib.normals.size());
+										n[0][k] = attrib.normals[3 * nf0 + k];
+										n[1][k] = attrib.normals[3 * nf1 + k];
+										n[2][k] = attrib.normals[3 * nf2 + k];
+									}
+								}
+							}
+							else
+							{
+								invalid_normal_index = true;
+							}
 
-								n[2][0] = smoothVertexNormals[f2].m[0];
-								n[2][1] = smoothVertexNormals[f2].m[1];
-								n[2][2] = smoothVertexNormals[f2].m[2];
+							if (invalid_normal_index && !smoothVertexNormals.empty())
+							{
+								// Use smoothing normals
+								int f0 = idx0.vertex_index;
+								int f1 = idx1.vertex_index;
+								int f2 = idx2.vertex_index;
 
-								invalid_normal_index = false;
+								if (f0 >= 0 && f1 >= 0 && f2 >= 0)
+								{
+									n[0][0] = smoothVertexNormals[f0].m[0];
+									n[0][1] = smoothVertexNormals[f0].m[1];
+									n[0][2] = smoothVertexNormals[f0].m[2];
+
+									n[1][0] = smoothVertexNormals[f1].m[0];
+									n[1][1] = smoothVertexNormals[f1].m[1];
+									n[1][2] = smoothVertexNormals[f1].m[2];
+
+									n[2][0] = smoothVertexNormals[f2].m[0];
+									n[2][1] = smoothVertexNormals[f2].m[1];
+									n[2][2] = smoothVertexNormals[f2].m[2];
+
+									invalid_normal_index = false;
+								}
+							}
+
+							if (invalid_normal_index)
+							{
+								// compute geometric normal
+								CalcNormal(n[0].m, v[0].m, v[1].m, v[2].m);
+								n[1][0] = n[0][0];
+								n[1][1] = n[0][1];
+								n[1][2] = n[0][2];
+								n[2][0] = n[0][0];
+								n[2][1] = n[0][1];
+								n[2][2] = n[0][2];
 							}
 						}
-
-						if (invalid_normal_index)
-						{
-							// compute geometric normal
-							CalcNormal(n[0].m, v[0].m, v[1].m, v[2].m);
-							n[1][0] = n[0][0];
-							n[1][1] = n[0][1];
-							n[1][2] = n[0][2];
-							n[2][0] = n[0][0];
-							n[2][1] = n[0][1];
-							n[2][2] = n[0][2];
-						}
-					}
 #pragma endregion
 
-					Vertex vertex0 = { v[0], n[0], tc[0] };
-					Vertex vertex1 = { v[1], n[1], tc[1] };
-					Vertex vertex2 = { v[2], n[2], tc[2] };
+						Vertex vertex0 = { v[0], n[0], tc[0] };
+						Vertex vertex1 = { v[1], n[1], tc[1] };
+						Vertex vertex2 = { v[2], n[2], tc[2] };
 
-					int3 face;
-					const auto& foundI0 = remap.find(idx0);
-					if (foundI0 == remap.end())//not found
-					{
-						face.x = (int)mesh.mVertexBuffer.size();
-						mesh.mVertexBuffer.push_back(vertex0);
-						remap[idx0] = face.x;//store the remap for next time
+						int3 face;
+						const auto& foundI0 = remap.find(idx0);
+						if (foundI0 == remap.end())//not found
+						{
+							face.x = mesh.mVertexCount++;
+							mVertexBuffer.push_back(vertex0);
+							remap[idx0] = face.x;//store the remap for next time
+						}
+						else
+							face.x = foundI0->second;
+
+						const auto& foundI1 = remap.find(idx1);
+						if (foundI1 == remap.end())//not found
+						{
+							face.y = mesh.mVertexCount++;
+							mVertexBuffer.push_back(vertex1);
+							remap[idx1] = face.y;//store the remap for next time
+						}
+						else
+							face.y = foundI1->second;
+
+						const auto& foundI2 = remap.find(idx2);
+						if (foundI2 == remap.end())//not found
+						{
+							face.z = mesh.mVertexCount++;
+							mVertexBuffer.push_back(vertex2);
+							remap[idx2] = face.z;//store the remap for next time
+						}
+						else
+							face.z = foundI2->second;
+
+						//store the new face
+						mIndexBuffer.push_back(face);
+						mesh.mFaceCount++;
 					}
-					else
-						face.x = foundI0->second;
 
-					const auto& foundI1 = remap.find(idx1);
-					if (foundI1 == remap.end())//not found
+					//store mesh
+					if (mesh.mFaceCount != 0 && mesh.mVertexCount != 0)
 					{
-						face.y = (int)mesh.mVertexBuffer.size();
-						mesh.mVertexBuffer.push_back(vertex1);
-						remap[idx1] = face.y;//store the remap for next time
-					}
-					else
-						face.y = foundI1->second;
+						mesh.mEntry.mIndexOffset = indexOffset;
+						mesh.mEntry.mVertexOffset = vertexOffset;
+						mMeshes.push_back(mesh);// std::move(mesh));
 
-					const auto& foundI2 = remap.find(idx2);
-					if (foundI2 == remap.end())//not found
-					{
-						face.z = (int)mesh.mVertexBuffer.size();
-						mesh.mVertexBuffer.push_back(vertex2);
-						remap[idx2] = face.z;//store the remap for next time
+						indexOffset += mesh.mFaceCount;
+						vertexOffset += mesh.mVertexCount;
 					}
-					else
-						face.z = foundI2->second;
-
-					//store the new face
-					mesh.mIndexBuffer.push_back(face);
 				}
-
-				//store mesh
-				if (mesh.mIndexBuffer.size() != 0 && mesh.mVertexBuffer.size() != 0)
-					mMeshes.push_back(std::move(mesh));
 			}
 		}
 	}
@@ -761,23 +826,29 @@ namespace Phoenix
 		uint32_t iMesh = 0;
 		for (auto& mesh : mMeshes)
 		{
-			float4 color(materials[mesh.mMaterialIndex].diffuse[0], materials[mesh.mMaterialIndex].diffuse[1], materials[mesh.mMaterialIndex].diffuse[2], 1);
+			float4 color(.5f, .5f, .5f, 1);
 			if (mesh.mVisible)
-				D3D11MeshRenderer::Instance()->DrawMesh(mesh.mVertexBuffer.data(), mesh.mVertexBuffer.size(), mesh.mIndexBuffer.data(), mesh.mIndexBuffer.size(), identity, identity, color);
+			{
+				//get the subpart of the index and vertex buffers for this particular mesh
+				int3* meshIndexBuffer = &(mIndexBuffer[mesh.mEntry.mIndexOffset]);
+				Vertex* meshVertexBuffer = &(mVertexBuffer[mesh.mEntry.mVertexOffset]);
+				D3D11MeshRenderer::Instance()->DrawMesh(meshVertexBuffer, mesh.mVertexCount, meshIndexBuffer, mesh.mFaceCount, identity, identity, color);
+			}
 			if (mesh.mBVHVisible)
 			{
-				for (auto& node : mBVHs[iMesh].GetNodes())
-				{
-					if (mesh.mBVHShowOnlyLeaves)
-					{
-						if (node.mLeafData != INVALID_INDEX)
-							D3D11LineRenderer::Instance()->DrawBox(node.mBoxMin, node.mBoxMax, float3(1, 0, 0));
-					}
-					else
-					{
-						D3D11LineRenderer::Instance()->DrawBox(node.mBoxMin, node.mBoxMax, float3(1, 0, 0));
-					}
-				}
+				//for (uint32_t iBox = 0; iBox < mesh.mAABBCount; ++iBox)
+				//{
+				//	const auto& node = mBottomLevel[mesh.mEntry.mRootBVH + iBox];
+				//	if (mesh.mBVHShowOnlyLeaves)
+				//	{
+				//		if (node.mLeafData != INVALID_INDEX)
+				//			D3D11LineRenderer::Instance()->DrawBox(node.mBoxMin, node.mBoxMax, float3(1, 0, 0));
+				//	}
+				//	else
+				//	{
+				//		D3D11LineRenderer::Instance()->DrawBox(node.mBoxMin, node.mBoxMax, float3(1, 0, 0));
+				//	}
+				//}
 			}
 			iMesh++;
 		}
@@ -790,6 +861,8 @@ namespace Phoenix
 		if (mSurface.mHit)
 		{
 			D3D11LineRenderer::Instance()->DrawPlane(mSurface.mPoint, mSurface.mNormal, float3(0, 0, 1), 1);
+			auto& box = mInstanceVolumes[mSurface.mHitInstanceIndex];
+			D3D11LineRenderer::Instance()->DrawBox(box.mMin, box.mMax, float3(1, 1, 0));
 		}
 	}
 
@@ -800,10 +873,10 @@ namespace Phoenix
 		if (ImGui::Button("Open"))
 		{
 			D3D11MeshRenderer::Instance()->FlushCache();
+			mVertexBuffer.clear();
+			mIndexBuffer.clear();
 			mMeshes.clear();
-			materials.clear();
-			materialsIsMetallic.clear();
-			materialsEmissionIntensity.clear();
+
 			FileLoadHandler();
 			RebuildBVHs();
 			RebuildLighting();
@@ -820,7 +893,7 @@ namespace Phoenix
 			D3D11MeshRenderer::Instance()->FlushCache();
 			for (auto& mesh : mMeshes)
 			{
-				for (auto& face : mesh.mIndexBuffer)
+				for (auto& face : mIndexBuffer)
 				{
 					std::swap(face.y, face.z);
 				}
@@ -860,14 +933,14 @@ namespace Phoenix
 		if (rotate)
 		{
 			D3D11MeshRenderer::Instance()->FlushCache();
-			for (auto& mesh : mMeshes)
-			{
-				for (auto& idx : mesh.mVertexBuffer)
+			//for (auto& mesh : mMeshes)
+			//{
+				for (auto& idx : mVertexBuffer)
 				{
 					idx.mPosition = mtx.Transform(idx.mPosition);
 					idx.mNormal = mtx.Transform(idx.mNormal);
 				}
-			}
+			//}
 			RebuildBVHs();
 			RebuildLighting();
 		}
@@ -899,7 +972,7 @@ namespace Phoenix
 				const auto& filename = GetFile("hdr\0*.HDR\0*.exr\0*.EXR");
 				if (!filename.empty())
 				{
-					mHDRI.mPath = filename;
+					mHDRI.mPath = filename.string().c_str();
 					mHDRI.mSky.Initialize(mHDRI.mPath);
 				}
 			}
@@ -935,87 +1008,7 @@ namespace Phoenix
 		ImGui::Separator();
 
 		bool lightingNeedsRecompute = false;
-		if (materials.size() && ImGui::CollapsingHeader("Materials"))
-		{
-			for (uint32_t iMaterialInfo = 0; iMaterialInfo < materials.size(); ++iMaterialInfo)
-			{
-				//static char matName[128];
-				//sprintf(matName, "Material.%d", iMaterialInfo);
-				if (ImGui::TreeNode(materials[iMaterialInfo].name.c_str()))
-				{
-					ImGui::ColorEdit3("Albedo", materials[iMaterialInfo].diffuse);
-					if(ImGui::CollapsingHeader("Emission"))
-					{
-						ImGui::ColorEdit3("Wavelength", materials[iMaterialInfo].emission);
-						ImGui::SliderFloat("Intensity", &materialsEmissionIntensity[iMaterialInfo], 0, 1000);
-						if ((materialsEmissionIntensity[iMaterialInfo]) && 
-							(materials[iMaterialInfo].emission[0] || materials[iMaterialInfo].emission[1] || materials[iMaterialInfo].emission[2]))
-						{
-							lightingNeedsRecompute = true;
-						}
-					}
-					ImGui::SliderFloat("IoR", &materials[iMaterialInfo].ior, 1.0f, 2.65f);
-					ImGui::SliderFloat("Roughness", &materials[iMaterialInfo].roughness, 0, 1.0f);
-					bool isMetal = materialsIsMetallic[iMaterialInfo];
-					ImGui::Checkbox("Metallic", &isMetal);
-					materialsIsMetallic[iMaterialInfo] = uint32_t(isMetal);
 
-					static cstr_t png_jpgFilter = "png\0*.PNG\0*.jpg\0*.JPG";
-					if (ImGui::SmallButton("Diffuse Map"))
-					{
-						const auto& filename = GetFile(png_jpgFilter);
-						if (!filename.empty())
-						{
-							materials[iMaterialInfo].diffuse_texname = filename;
-						}
-					}
-					ImGui::SameLine(); ImGui::Text(materials[iMaterialInfo].diffuse_texname.c_str());
-
-					if (ImGui::SmallButton("Emissive Map"))
-					{
-						const auto& filename = GetFile(png_jpgFilter);
-						if (!filename.empty())
-						{
-							materials[iMaterialInfo].emissive_texname = filename;
-							lightingNeedsRecompute = true;
-						}
-					}
-					ImGui::SameLine(); ImGui::Text(materials[iMaterialInfo].emissive_texname.c_str());
-
-					if (ImGui::SmallButton("Roughness Map"))
-					{
-						const auto& filename = GetFile(png_jpgFilter);
-						if (!filename.empty())
-						{
-							materials[iMaterialInfo].roughness_texname = filename;
-						}
-					}
-					ImGui::SameLine(); ImGui::Text(materials[iMaterialInfo].roughness_texname.c_str());
-
-					if (ImGui::SmallButton("Metallic Map"))
-					{
-						const auto& filename = GetFile(png_jpgFilter);
-						if (!filename.empty())
-						{
-							materials[iMaterialInfo].metallic_texname = filename;
-						}
-					}
-					ImGui::SameLine(); ImGui::Text(materials[iMaterialInfo].metallic_texname.c_str());
-
-					if (ImGui::SmallButton("Normal Map"))
-					{
-						const auto& filename = GetFile(png_jpgFilter);
-						if (!filename.empty())
-						{
-							materials[iMaterialInfo].normal_texname = filename;
-						}
-					}
-					ImGui::SameLine(); ImGui::Text(materials[iMaterialInfo].normal_texname.c_str());
-					
-					ImGui::TreePop();
-				}
-			}
-		}
 		if (lightingNeedsRecompute)
 			RebuildLighting();
 
@@ -1025,29 +1018,8 @@ namespace Phoenix
 			{
 				if (ImGui::TreeNode(mMeshes[iMesh].mName.c_str()))
 				{
-					ImGui::BulletText("%d faces", mMeshes[iMesh].mIndexBuffer.size());
-					ImGui::BulletText("%d vertices", mMeshes[iMesh].mVertexBuffer.size());
-					ImGui::BulletText("%d BVH nodes", mBVHs[iMesh].GetNodes().size());
-					//ImGui::BulletText("Emissive %s", mMeshes[iMesh].mMaterialIndex);
-					{
-						uint32_t index = mMeshes[iMesh].mMaterialIndex;
-						if (ImGui::BeginCombo("Materials", materials[index].name.c_str(), ImGuiComboFlags_HeightSmall))
-						{
-							for (int n = 0; n < materials.size(); n++)
-							{
-								const bool isSelected = (index == n);
-								if (ImGui::Selectable(materials[n].name.c_str(), isSelected))
-									index = n;
-
-								// Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
-								if (isSelected)
-									ImGui::SetItemDefaultFocus();
-							}
-							ImGui::EndCombo();
-						}
-						mMeshes[iMesh].mMaterialIndex = index;//override the index
-					}
-
+					ImGui::BulletText("%d faces", mMeshes[iMesh].mFaceCount);
+					ImGui::BulletText("%d vertices", mMeshes[iMesh].mVertexCount);
 					ImGui::Checkbox("Show BVH", &mMeshes[iMesh].mBVHVisible);
 					ImGui::Checkbox("BVH Leaves", &mMeshes[iMesh].mBVHShowOnlyLeaves);
 					ImGui::Checkbox("Visible", &mMeshes[iMesh].mVisible);
@@ -1064,24 +1036,119 @@ namespace Phoenix
 	{
 	}
 
+	//float RayBVHIntersectRec(const Ray& ray, const BVH::NodeList_t& nodes, BVHNodeIndex nodeIndex, std::vector<Vertex>& vertexBuffer, std::vector<int3>& indexBuffer, float3& p, float3& n)
+	//{
+	//	float hitTime = FLT_MAX;
+	//	const GPUBVHNode& node = nodes[nodeIndex];
+
+	//	AABB box(node.mBoxMin, node.mBoxMax);
+	//	if (box.Intersect(ray))
+	//	{
+	//		if (node.mLeafData != INVALID_INDEX)
+	//		{
+	//			int3 face = indexBuffer[node.mLeafData];
+
+	//			auto& v0 = vertexBuffer[face.x];
+	//			auto& v1 = vertexBuffer[face.y];
+	//			auto& v2 = vertexBuffer[face.z];
+
+	//			float3 p0 = v0.mPosition;
+	//			float3 p1 = v1.mPosition;
+	//			float3 p2 = v2.mPosition;
+
+	//			float3 n0 = v0.mNormal;
+	//			float3 n1 = v1.mNormal;
+	//			float3 n2 = v2.mNormal;
+
+	//			float t, u, v;
+	//			if (IntersectionRayTriangle(ray, p0, p1, p2, t, u, v))
+	//			{
+	//				hitTime = t;
+	//				//write out the SHADING normal
+	//				float one_minusu_minusv = (1 - u - v);
+	//				n = float3::normalize((one_minusu_minusv * n0) + (u * n1) + (v * n2));
+	//				p = ray.mOrigin + t * ray.mDirection;
+	//			}
+	//		}
+	//		else
+	//		{
+	//			float3 pL, pR, nL, nR;
+	//			float tL = RayBVHIntersectRec(ray, nodes, node.mLeftChild, vertexBuffer, indexBuffer, pL, nL);
+	//			float tR = RayBVHIntersectRec(ray, nodes, node.mRightChild, vertexBuffer, indexBuffer, pR, nR);
+	//			if (tL < tR)
+	//			{
+	//				n = nL;
+	//				p = pL;
+	//				hitTime = tL;
+	//			}
+	//			else
+	//			{
+	//				n = nR;
+	//				p = pR;
+	//				hitTime = tR;
+	//			}
+	//		}
+	//	}
+	//	return hitTime;
+	//}
+
 	void Visualize::MouseClick(const MouseInfo& info)
 	{
 		PrimaryRay(mSurface.mRay, uint2(info.x, info.y));
 		float tMin = FLT_MAX;
-		uint32_t iMesh = 0;
-		for (const auto& bvh : mBVHs)
-		{
-			float3 p, n;
-			float t = RayBVHIntersect(mSurface.mRay, bvh, mMeshes[iMesh++], p, n);
-			if (t < tMin)
-			{
-				tMin = t;
-				mSurface.mPoint = p;
-				mSurface.mNormal = n;
-			}
-		}
+		float3 hitPos, hitNml;
 
-		mSurface.mHit = tMin < FLT_MAX;
+		uint64_t stack[256];
+		int stackIndex = 0;
+		//push on the stack
+		stack[stackIndex] = 0;
+
+		do
+		{
+			uint64_t currentNodeIndex = stack[stackIndex];
+			const auto& node = mTopLevel[currentNodeIndex];
+			AABB box(node.mBoxMin, node.mBoxMax);
+			if (box.Intersect(mSurface.mRay))
+			{
+				if (node.mLeafData != INVALID_INDEX)
+				{
+
+					//hit instance
+					float3 p, n;
+					float t = RayBVHIntersect(mSurface.mRay, node.mLeafData, p, n);
+					if (t < tMin)
+					{
+						tMin = t;
+						hitPos = p;
+						hitNml = n;
+						mSurface.mHitInstanceIndex = node.mLeafData;
+					}
+
+					//pop stack
+					stackIndex--;
+				}
+				else
+				{
+					//recurse
+					stack[stackIndex] = node.mLeftChild; //Note we are overriding the stackIndex (squash the node we just traversed)
+					++stackIndex;
+					stack[stackIndex] = node.mRightChild;
+				}
+			}
+			else
+			{
+				//pop stack
+				stackIndex--;
+			}
+
+		} while (stackIndex >= 0);
+
+		if (tMin < FLT_MAX)
+		{
+			mSurface.mHit = true;
+			mSurface.mPoint = hitPos;
+			mSurface.mNormal = hitNml;
+		}
 	}
 
 	void Visualize::MouseDrag(const MouseInfo& info)
@@ -1161,65 +1228,83 @@ namespace Phoenix
 		}
 	}
 
-	float RayBVHIntersectRec(const Ray& ray, const BVH::NodeList_t& nodes, BVHNodeIndex nodeIndex, std::vector<Vertex>& vertexBuffer, std::vector<int3>& indexBuffer, float3& p, float3& n)
+	//float Visualize::RayBVHIntersect(const Ray& ray, const BVH& bvh, Mesh& mesh, float3& p, float3& n)
+	//{
+	//	return RayBVHIntersectRec(ray, bvh.GetNodes(), 0, mesh.mVertexBuffer, mesh.mIndexBuffer, p, n);
+	//}
+
+	float Visualize::RayBVHIntersect(const Ray& ray, uint64_t instanceIndex, float3& p, float3& n)
 	{
 		float hitTime = FLT_MAX;
-		const GPUBVHNode& node = nodes[nodeIndex];
 
-		AABB box(node.mBoxMin, node.mBoxMax);
-		if (box.Intersect(ray))
+		uint64_t stack[256];
+		int stackIndex = 0;
+		//push on the stack
+
+		uint32_t meshIndex = mInstances[instanceIndex].mMeshEntry;
+		BVHNodeIndex root = mMeshes[meshIndex].mEntry.mRootBVH;
+		stack[stackIndex] = root;//push BVH root
+
+		do
 		{
-			if (node.mLeafData != INVALID_INDEX)
+			uint64_t currentNodeIndex = stack[stackIndex];
+			const auto& node = mBottomLevels[currentNodeIndex];
+			AABB box(node.mBoxMin, node.mBoxMax);
+			if (box.Intersect(mSurface.mRay))
 			{
-				int3 face = indexBuffer[node.mLeafData];
-
-				auto& v0 = vertexBuffer[face.x];
-				auto& v1 = vertexBuffer[face.y];
-				auto& v2 = vertexBuffer[face.z];
-
-				float3 p0 = v0.mPosition;
-				float3 p1 = v1.mPosition;
-				float3 p2 = v2.mPosition;
-
-				float3 n0 = v0.mNormal;
-				float3 n1 = v1.mNormal;
-				float3 n2 = v2.mNormal;
-
-				float t, u, v;
-				if (IntersectionRayTriangle(ray, p0, p1, p2, t, u, v))
+				if (node.mLeafData != INVALID_INDEX)
 				{
-					hitTime = t;
-					//write out the SHADING normal
-					float one_minusu_minusv = (1 - u - v);
-					n = float3::normalize((one_minusu_minusv * n0) + (u * n1) + (v * n2));
-					p = ray.mOrigin + t * ray.mDirection;
+					//hit triangle AABB
+					//Test triangle
+					uint32_t faceOffset = mMeshes[meshIndex].mEntry.mIndexOffset;
+					uint32_t vertexOffset = mMeshes[meshIndex].mEntry.mVertexOffset;
+
+					const auto& face = mIndexBuffer[faceOffset + node.mLeafData];
+					auto& v0 = mVertexBuffer[vertexOffset + face.x];
+					auto& v1 = mVertexBuffer[vertexOffset + face.y];
+					auto& v2 = mVertexBuffer[vertexOffset + face.z];
+
+					float3 p0 = v0.mPosition;
+					float3 p1 = v1.mPosition;
+					float3 p2 = v2.mPosition;
+
+					float3 n0 = v0.mNormal;
+					float3 n1 = v1.mNormal;
+					float3 n2 = v2.mNormal;
+
+					float t, u, v;
+					if (IntersectionRayTriangle(ray, p0, p1, p2, t, u, v))
+					{
+						if (t < hitTime)
+						{
+							hitTime = t;
+							//write out the SHADING normal
+							float one_minusu_minusv = (1 - u - v);
+							n = float3::normalize((one_minusu_minusv * n0) + (u * n1) + (v * n2));
+							p = ray.mOrigin + t * ray.mDirection;
+						}
+					}
+
+					//pop stack
+					stackIndex--;
+				}
+				else
+				{
+					//recurse
+					stack[stackIndex] = root + node.mLeftChild; //Note we are overriding the stackIndex (squash the node we just traversed)
+					++stackIndex;
+					stack[stackIndex] = root + node.mRightChild;
 				}
 			}
 			else
 			{
-				float3 pL, pR, nL, nR;
-				float tL = RayBVHIntersectRec(ray, nodes, node.mLeftChild, vertexBuffer, indexBuffer, pL, nL);
-				float tR = RayBVHIntersectRec(ray, nodes, node.mRightChild, vertexBuffer, indexBuffer, pR, nR);
-				if (tL < tR)
-				{
-					n = nL;
-					p = pL;
-					hitTime = tL;
-				}
-				else
-				{
-					n = nR;
-					p = pR;
-					hitTime = tR;
-				}
+				//pop stack
+				stackIndex--;
 			}
-		}
-		return hitTime;
-	}
 
-	float Visualize::RayBVHIntersect(const Ray& ray, const BVH& bvh, Mesh& mesh, float3& p, float3& n)
-	{
-		return RayBVHIntersectRec(ray, bvh.GetNodes(), 0, mesh.mVertexBuffer, mesh.mIndexBuffer, p, n);
+		} while (stackIndex >= 0);
+
+		return hitTime;
 	}
 
 	void Visualize::PrimaryRay(Ray& ray, const uint2& coord)

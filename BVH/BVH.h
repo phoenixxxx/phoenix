@@ -12,7 +12,7 @@ namespace Phoenix
 	class BVH
 	{
 	public:
-		enum BuildPolicy { eSurfaceAreaHuristic, eSpaceFillingCurve };
+		enum BuildPolicy { eSurfaceAreaHeuristic, eSpaceFillingCurve };
 		
 		class ConstructionItem
 		{
@@ -33,12 +33,14 @@ namespace Phoenix
 		}
 
 	public:
+		const GPUBVHNode& operator[](int index) { return mNodes[index]; }
 		BVHNodeIndex CreateVolumes(AABB& rootBox, std::vector<ConstructionItem*> items, BuildPolicy policy);
 		void Print(BVHNodeIndex root);
 		uint32_t GetDepth(BVHNodeIndex root);
 
 		typedef  std::vector<GPUBVHNode> NodeList_t;
 		const NodeList_t& GetNodes()const { return mNodes; }
+		void Clear() { mNodes.clear(); }
 
 	private:
 		enum Axis { eX = 0, eY = 1, eZ = 2 };

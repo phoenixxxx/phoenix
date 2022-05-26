@@ -10,7 +10,6 @@
 typedef struct GPUBVHNode
 {
 	//relationship
-	uint64_t  mParent;
 	uint64_t  mLeftChild;
 	uint64_t  mRightChild;
 
@@ -26,7 +25,6 @@ typedef struct GPUBVHNode
 typedef struct GPUBVHLightingNode
 {
 	//relationship
-	uint64_t  mParent;
 	uint64_t  mLeftChild;
 	uint64_t  mRightChild;
 
