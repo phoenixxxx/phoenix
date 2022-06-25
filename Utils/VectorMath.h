@@ -111,6 +111,9 @@ struct float3
 		struct {
 			float x, y, z;
 		};
+		struct {
+			float r, g, b;
+		};
 	};
 };
 float3 MakeFloat3(float x = 0, float y = 0, float z = 1);

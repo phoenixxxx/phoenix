@@ -6,9 +6,12 @@
 #include <Utils/Console.h>
 
 #include <Scenario/Visualize.h>
+#include <Scenario/MaterialEditor.h>
 #include <Utils/Event.h>
 
-//#define CONSOLE
+#include <VK/VKManager.h>
+
+#define CONSOLE
 
 #ifdef CONSOLE
 void PipeToSTDOut()
@@ -91,8 +94,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     Phoenix::D3D11MeshRenderer::Instance()->Initialize();
     Phoenix::D3D11imgui::Instance()->Initialize();
     Phoenix::Console::Instance()->Initialize();
+    Phoenix::VKManager::Instance()->Initialize();
 
-    std::vector<Phoenix::Scenario*> scenarios = {new Phoenix::Visualize()};
+    std::vector<Phoenix::Scenario*> scenarios = {new Phoenix::Visualize(), new Phoenix::MaterialEditor()};
     std::vector<stdstr_t> scenarioNames;
     for (auto sc : scenarios)
     {

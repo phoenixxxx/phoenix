@@ -29,6 +29,11 @@ set(D3D11_DIR "${PROJECT_SOURCE_DIR}/D3D11")
 file(GLOB D3D11_SRC "${D3D11_DIR}/*.cpp" "${D3D11_DIR}/*.h")
 source_group("D3D11" FILES ${D3D11_SRC})
 
+# VK
+set(VK_DIR "${PROJECT_SOURCE_DIR}/VK")
+file(GLOB VK_SRC "${VK_DIR}/*.cpp" "${VK_DIR}/*.h")
+source_group("VK" FILES ${VK_SRC})
+
 # D3D11LineRenderer
 set(D3D11LINERENDERER_DIR "${PROJECT_SOURCE_DIR}/D3D11LineRenderer")
 file(GLOB D3D11LINERENDERER_SRC "${D3D11LINERENDERER_DIR}/*.cpp" "${D3D11LINERENDERER_DIR}/*.h")
@@ -93,12 +98,31 @@ source_group("ThirdParty/tinyobjloader" FILES ${TINYOBJLOADER_SRC})
 file(GLOB TINYXML2_SRC "${THIRDPARTY_DIR}/tinyxml2/*.cpp" "${THIRDPARTY_DIR}/tinyxml2/*.h")
 source_group("ThirdParty/tinyxml2" FILES ${TINYXML2_SRC})
 
+# Vulkan SDK
+if(NOT DEFINED VK_SDK_PATH)
+    message("VK_SDK_PATH is not defined")
+    return(1)
+endif()
+
+if(NOT DEFINED DXC_PATH)
+    message("DXC_PATH is not defined")
+    return(1)
+endif()
+
+include_directories(${VK_SDK_PATH}/Include)
+link_directories(${VK_SDK_PATH}/Lib)
+add_compile_definitions(DXC_PATH="${DXC_PATH}")
+add_compile_definitions(ASSETS_PATH="${PROJECT_SOURCE_DIR}/Assets/")
+add_compile_definitions(SHARED_GPU_CPU="${PROJECT_SOURCE_DIR}/SharedGPU_CPU/")
+
 add_executable(${PROJECT_NAME} WIN32 ${BVH_SRC} ${BVHLIGHTING_SRC} ${CAMERA_SRC} 
-${D3D11_SRC} ${D3D11LINERENDERER_SRC} ${D3D11MESHRENDERER_SRC} 
+${D3D11_SRC} ${VK_SRC} ${D3D11LINERENDERER_SRC} ${D3D11MESHRENDERER_SRC} 
 ${IMAGE_SRC} ${MATERIAL_SRC} ${SCENARIO_SRC} ${SHARED_GPU_CPU_SRC} ${SKYILLUM_SRC} 
 ${UTILS_SRC} ${WINDOW_SRC} 
 ${IMGUI_SRC} ${JSON_SRC} ${MINIZ_SRC} ${SKY_SRC} ${STBIMAGE_SRC} ${TINYEXR_SRC} ${TINYOBJLOADER_SRC} ${TINYXML2_SRC}
 main.cpp)
+
+TARGET_LINK_LIBRARIES(${PROJECT_NAME} vulkan-1.lib)
 
 # Set compiler flags and options. 
 # Here it is setting the Visual Studio warning level to 4
@@ -110,5 +134,8 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/Assets ${CMAKE_BINARY_DIR}/${CMAKE_CFG_INTDIR}/Assets
     # for the visual studio solution if debug
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/Assets ${CMAKE_BINARY_DIR}/Assets
-)
 
+    #for shared CPU/GPU headers (No longer needed)
+    # COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/SharedGPU_CPU ${CMAKE_BINARY_DIR}/${CMAKE_CFG_INTDIR}/Assets/Shaders/Shared
+    # COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/SharedGPU_CPU ${CMAKE_BINARY_DIR}/Assets/Shaders/Shared
+)

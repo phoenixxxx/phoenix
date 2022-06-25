@@ -8,6 +8,10 @@ This is a general purpose 3D visualizer tool (Windows + D3D11)
 - Install C/C++ extension
 - Install CMake tools
 - Configure the project (automated)
+     "cmake.configureSettings": {
+        "VK_SDK_PATH" : "...",
+        "DXC_PATH" : "..."
+         }
 - Debugging
     - Use Windows debugging
     - Use the following `launch.json`

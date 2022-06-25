@@ -12,48 +12,38 @@ namespace Phoenix
 		MaterialSystem();
 	public:
 		static MaterialSystem* Instance();
+
 	public:
-		template <typename T>
-		T* AllocateNode()
-		{
-			T* node = new T();
-			mNodes.push_back(node);
-			return node;
-		}
+		float3 Execute(uint32_t node);
 
-		void Compile(const MaterialNode::Plug& output);
-	private:
-		struct StackState
-		{
-			uint32_t mNode;
-			uint32_t mOutputPlug;
+		//Node creation
+		uint32_t CreateNode(nodeType_t type);
 
-			uint32_t mShaderGraphState;
-			uint32_t mCurrentInputPlug;
+		//data
+		void SetFloat(uint32_t node, float x);
+		void SetFloat2(uint32_t node, float x, float y);
+		void SetFloat3(uint32_t node, float x, float y, float z);
+		void SetFloat4(uint32_t node, float x, float y, float z, float w);
+		void SetInt(uint32_t node, int x);
+		void SetInt2(uint32_t node, int x, int y);
+		void SetInt3(uint32_t node, int x, int y, int z);
+		void SetInt4(uint32_t node, int x, int y, int z, int w);
 
-			float mValue[4];
+		//sampler 2D
+		void SetSamplerTexcoords(uint32_t node, uint32_t texCoordsNode);
+		void SetSamplerAddressing(uint32_t node);///, imageSampler2DAddressing_t addressing);
+		void SetSamplerFiltering(uint32_t node);// , imageSampler2DFilter_t filtering);
 
-			union
-			{
-				struct
-				{
-					float mTexCoords[4];
-				}mTex2D;
-				struct
-				{
-					float mAlbedo[4];
-					float mNormal[4];
-					float mRoughness[4];
-				}mDiffuseBSDF;
-			};
-		};
-		bool ReadPlugData(float output[4], float defaultValue[4], float4 valueOutput, StackState& current, StackState& next, const SharedMaterialNode::Plug& plug);
-		void ConvertNodes();
-		uint32_t GetNodeIndex(MaterialNode* node);
-		void ConvertPlug(SharedMaterialNode::Plug& outputPlug, const MaterialNode::Plug& inuputPlug);
+		//eLambertianBRDF
+		void SetDiffuseBRDFAlbedo(uint32_t node, uint32_t albedoNode);
+		void SetDiffuseBRDFNormal(uint32_t node, uint32_t normalNode);
+		void SetDiffuseBRDFRoughness(uint32_t node, uint32_t roughnessNode);
+
+		//math
+		void SetMathInputA(uint32_t node, uint32_t a);
+		void SetMathInputB(uint32_t node, uint32_t b);
 
 	private:
-		std::vector<MaterialNode*> mNodes;
-		std::vector<SharedMaterialNode> mSharedNodes;
+		std::vector<SharedMaterialNode> mNodes;
 	};
 }

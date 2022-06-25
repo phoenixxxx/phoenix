@@ -19,8 +19,6 @@
 #include <filesystem>
 #include <D3D11MeshRenderer/D3D11MeshRenderer.h>
 
-#include <ThirdParty/tinyxml2/tinyxml2.h>
-
 namespace Phoenix
 {
 	static std::filesystem::path GetFile(cstr_t filter, bool load=true)
@@ -486,11 +484,6 @@ namespace Phoenix
 		{
 			if ((filename.extension() == ".mtlx") || (filename.extension() == ".MTLX"))
 			{
-				tinyxml2::XMLDocument doc;
-				doc.LoadFile(filename.string().c_str());
-				auto err = doc.ErrorID();
-
-				tinyxml2::XMLElement* titleElement = doc.FirstChildElement("materialx");
 			}
 			if ((filename.extension() == ".OBJ") || (filename.extension() == ".obj"))
 			{
@@ -793,10 +786,6 @@ namespace Phoenix
 	//CSVDocument<2> doc("test.csv", { "Theta", "Phi" });
 	bool Visualize::Initialize()
 	{
-		//Console::Instance()->RegisterCommand("open", Console::CommandEvent_t::Callback(&Visualize::FileLoadHandler, this));
-
-		//Sky s(0.5f, 512, 10.f, PiOver4);
-		//s.RenderToFile("sky.exr");
 		return true;
 	}
 
@@ -869,7 +858,12 @@ namespace Phoenix
 	void Visualize::DrawUI()
 	{
 		////draw the UI
-		ImGui::Begin(Name());
+		if (!ImGui::Begin(Name()))
+		{
+			ImGui::End();
+			return;
+		}
+
 		if (ImGui::Button("Open"))
 		{
 			D3D11MeshRenderer::Instance()->FlushCache();
