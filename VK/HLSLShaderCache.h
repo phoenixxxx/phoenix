@@ -27,12 +27,17 @@ static bool ReadFromPipe(HANDLE handle)
 
 	bool error = false;
 
-	bSuccess = ReadFile(handle, chBuf, BUFSIZE, &dwRead, NULL);
-	if (bSuccess && (dwRead != 0))
+	do
 	{
-		error = true;
-		WriteFile(hParentStdOut, chBuf, dwRead, &dwWritten, NULL);
-	}
+		PeekNamedPipe(handle, NULL, 0, NULL, &dwRead, NULL);
+		if (dwRead)
+		{
+			ReadFile(handle, chBuf, BUFSIZE, &dwRead, NULL);
+			WriteFile(hParentStdOut, chBuf, dwRead, &dwWritten, NULL);
+			error = true;
+		}
+	} while (dwRead != 0);
+
 	return error;
 }
 
@@ -96,8 +101,8 @@ public:
 		}
 		if (filePath.empty())
 		{
-			HANDLE g_hChildStd_OUT_Rd = NULL;
-			HANDLE g_hChildStd_OUT_Wr = NULL;
+			HANDLE pipeRd = NULL;
+			HANDLE pipeWr = NULL;
 
 			SECURITY_ATTRIBUTES saAttr;
 			saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
@@ -105,7 +110,7 @@ public:
 			saAttr.lpSecurityDescriptor = NULL;
 
 			// Create a pipe for the child process's STDOUT. 
-			bool pipeCreated = CreatePipe(&g_hChildStd_OUT_Rd, &g_hChildStd_OUT_Wr, &saAttr, 0);
+			bool pipeCreated = CreatePipe(&pipeRd, &pipeWr, &saAttr, 0);
 			assert(pipeCreated);
 
 			static char outputFile[MAX_COMPILE_CMD_LENGTH];
@@ -123,8 +128,8 @@ public:
 			STARTUPINFOA info;
 			ZeroMemory(&info, sizeof(STARTUPINFO));
 			info.cb = sizeof(STARTUPINFO);
-			info.hStdError = g_hChildStd_OUT_Wr;
-			info.hStdOutput = g_hChildStd_OUT_Wr;
+			info.hStdError = pipeWr;
+			info.hStdOutput = pipeWr;
 			info.hStdInput = 0;
 			info.dwFlags |= STARTF_USESTDHANDLES;			
 			
@@ -135,14 +140,14 @@ public:
 				TRUE,
 				0, NULL, NULL, &info, &processInfo))
 			{
-				error = ReadFromPipe(g_hChildStd_OUT_Rd);
+				error = ReadFromPipe(pipeRd);
 
 				WaitForSingleObject(processInfo.hProcess, INFINITE);
 				CloseHandle(processInfo.hProcess);
 				CloseHandle(processInfo.hThread);
 
-				CloseHandle(g_hChildStd_OUT_Wr);
-				CloseHandle(g_hChildStd_OUT_Rd);
+				CloseHandle(pipeWr);
+				CloseHandle(pipeRd);
 
 				filePath = outputFile;
 			}

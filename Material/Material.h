@@ -17,7 +17,7 @@ namespace Phoenix
 		float3 Execute(uint32_t node);
 
 		//Node creation
-		uint32_t CreateNode(nodeType_t type);
+		uint32_t CreateNode(eNodeType type);
 
 		//data
 		void SetFloat(uint32_t node, float x);

@@ -37,16 +37,6 @@ namespace Phoenix
 	//CSVDocument<2> doc("test.csv", { "Theta", "Phi" });
 	bool MaterialEditor::Initialize()
 	{
-		HRESULT hr;
-		cstr_t shaderPath = "Assets/Shaders/MaterialEvaluation.hlsl";
-		std::vector<byte_t> shaderCode = LoadFile(shaderPath);
-		if (shaderCode.size() != 0)
-		{
-			ID3DBlob* blob;
-			//vertex shader
-			blob = Phoenix::D3D11Manager::Instance()->CompileShader(shaderCode, shaderPath, "Evaluate", "cs_5_0");
-			//hr = Phoenix::D3D11Manager::Instance()->GetDevice()->CreateVertexShader(blob->GetBufferPointer(), blob->GetBufferSize(), nullptr, &mVertexShader);
-		}
 #if 0
 		auto albedoSamplerNode = MaterialSystem::Instance()->CreateNode(eNodeTypes::eImageSampler2D);
 		auto normalNode = MaterialSystem::Instance()->CreateNode(eNodeTypes::eObjNormal);

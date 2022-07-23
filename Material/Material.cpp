@@ -3,9 +3,6 @@
 #include <SharedGPU_CPU/SharedHierarchy.h>//INVALID_INDEX def
 
 #define MAX_STACK_DEPTH 16
-
-#define STACK_EMPTY (stackIndex==0)
-
 #define STACK_RETURN {assert(stackIndex > 0); stackIndex--;}
 
 #define STACK_POP_F(v)                        \
@@ -46,18 +43,6 @@
 	stack[stackIndex].mInputAvailable = true; \
 }                                             \
 
-#define STACK_PUSH(node)                   \
-{                                          \
-	stackIndex++;                          \
-	stack[stackIndex].mNodeIndex = node;   \
-	stack[stackIndex].mInputIndex = 0;     \
-	stack[stackIndex].mInputAvailable = 0; \
-}                                          \
-
-#define STACK_TOP (stack[stackIndex])
-#define NEXT_INPUT(index) { STACK_TOP.mInputIndex = index + 1; STACK_TOP.mInputAvailable = false; }
-#define INPUT_AVAILABLE (STACK_TOP.mInputAvailable)
-
 #define READ_F(f)                        \
 {                                        \
 	f = stack[stackIndex].mFloat[0];     \
@@ -80,7 +65,7 @@
 {                                        \
 	v.x = stack[stackIndex].mFloat[0];   \
 	v.y = stack[stackIndex].mFloat[1];   \
-	v.z = stack[stackIndex].mFloat[2];   \
+	v.z = stack[stackIndex.mFloat[2];   \
 	v.z = stack[stackIndex].mFloat[3];   \
 }                                        \
 
@@ -107,27 +92,27 @@ namespace Phoenix
 			//do the math!
 			switch (node.mType)
 			{
-			case NODE_TYPE_MATHOP_SIN:
+			case eNodeType::eMathOpSin:
 			{
 				outValue.x = sinf(A.x);
 			}break;
-			case NODE_TYPE_MATHOP_COS:
+			case eNodeType::eMathOpCos:
 			{
 				outValue.x = cosf(A.x);
 			}break;
-			case NODE_TYPE_MATHOP_TAN:
+			case eNodeType::eMathOpTan:
 			{
 				outValue.x = tanf(A.x);
 			}break;
-			case NODE_TYPE_MATHOP_ASIN:
+			case eNodeType::eMathOpASin:
 			{
 				outValue.x = asinf(A.x);
 			}break;
-			case NODE_TYPE_MATHOP_ACOS:
+			case  eNodeType::eMathOpACos:
 			{
 				outValue.x = acosf(A.x);
 			}break;
-			case NODE_TYPE_MATHOP_ATAN:
+			case  eNodeType::eMathOpATan:
 			{
 				outValue.x = atanf(A.x);
 			}break;
@@ -136,7 +121,7 @@ namespace Phoenix
 		}
 		else
 		{
-			STACK_PUSH(node.mInputs[NODE_TYPE_MATHOP_INPUT_A]);
+			STACK_PUSH(node.mInputs[eMathOpsInputs::A]);
 		}
 	}
 
@@ -149,7 +134,7 @@ namespace Phoenix
 		static float4 A, B, outValue;
 		switch (currentInputIndex)
 		{
-		case NODE_TYPE_MATHOP_INPUT_A:
+		case eMathOpsInputs::A:
 		{
 			if (INPUT_AVAILABLE)
 			{
@@ -158,10 +143,10 @@ namespace Phoenix
 			}
 			else
 			{
-				STACK_PUSH(node.mInputs[NODE_TYPE_MATHOP_INPUT_A]);
+				STACK_PUSH(node.mInputs[eMathOpsInputs::A]);
 			}
 		}break;
-		case NODE_TYPE_MATHOP_INPUT_B:
+		case eMathOpsInputs::B:
 		{
 			if (INPUT_AVAILABLE)
 			{
@@ -169,19 +154,19 @@ namespace Phoenix
 				//do the math!
 				switch (node.mType)
 				{
-				case NODE_TYPE_MATHOP_ADD:
+				case eNodeType::eMathOpAdd:
 				{
 					outValue = A + B;
 				}break;
-				case NODE_TYPE_MATHOP_SUB:
+				case eNodeType::eMathOpSub:
 				{
 					outValue = A - B;
 				}break;
-				case NODE_TYPE_MATHOP_MUL:
+				case eNodeType::eMathOpMul:
 				{
 					outValue = A * B;
 				}break;
-				case NODE_TYPE_MATHOP_DIV:
+				case eNodeType::eMathOpDiv:
 				{
 					outValue.x = A.x / B.x;
 					outValue.y = A.y / B.y;
@@ -193,7 +178,7 @@ namespace Phoenix
 			}
 			else
 			{
-				STACK_PUSH(node.mInputs[NODE_TYPE_MATHOP_INPUT_B]);
+				STACK_PUSH(node.mInputs[eMathOpsInputs::B]);
 			}
 		}break;
 		}
@@ -210,7 +195,7 @@ namespace Phoenix
 
 		switch (currentInputIndex)
 		{
-		case NODE_TYPE_BRDF_DIFFUSE_INPUT_ALBEDO:
+		case eBRDFDiffuseInputs::eAlbedo:
 		{
 			if (INPUT_AVAILABLE)
 			{
@@ -219,10 +204,10 @@ namespace Phoenix
 			}
 			else
 			{
-				STACK_PUSH(node.mInputs[NODE_TYPE_BRDF_DIFFUSE_INPUT_ALBEDO]);
+				STACK_PUSH(node.mInputs[eBRDFDiffuseInputs::eAlbedo]);
 			}
 		}break;
-		case NODE_TYPE_BRDF_DIFFUSE_INPUT_NORMAL:
+		case eBRDFDiffuseInputs::eNormal:
 		{
 			if (INPUT_AVAILABLE)
 			{
@@ -231,10 +216,10 @@ namespace Phoenix
 			}
 			else
 			{
-				STACK_PUSH(node.mInputs[NODE_TYPE_BRDF_DIFFUSE_INPUT_NORMAL]);
+				STACK_PUSH(node.mInputs[eBRDFDiffuseInputs::eNormal]);
 			}
 		}break;
-		case NODE_TYPE_BRDF_DIFFUSE_INPUT_ROUGHNESS:
+		case eBRDFDiffuseInputs::eRoughness:
 		{
 			if (INPUT_AVAILABLE)
 			{
@@ -244,7 +229,7 @@ namespace Phoenix
 			}
 			else
 			{
-				STACK_PUSH(node.mInputs[NODE_TYPE_BRDF_DIFFUSE_INPUT_ROUGHNESS]);
+				STACK_PUSH(node.mInputs[eBRDFDiffuseInputs::eRoughness]);
 			}
 		}break;
 		}
@@ -267,28 +252,28 @@ namespace Phoenix
 
 			switch (node.mType)
 			{
-			case NODE_TYPE_MATHOP_SIN:
-			case NODE_TYPE_MATHOP_COS:
-			case NODE_TYPE_MATHOP_TAN:
-			case NODE_TYPE_MATHOP_ASIN:
-			case NODE_TYPE_MATHOP_ACOS:
-			case NODE_TYPE_MATHOP_ATAN:
+			case eNodeType::eMathOpSin:
+			case eNodeType::eMathOpCos:
+			case eNodeType::eMathOpTan:
+			case eNodeType::eMathOpASin:
+			case eNodeType::eMathOpACos:
+			case eNodeType::eMathOpATan:
 			{
 				ExecuteMathFunction(node, current.mInputIndex, stack, stackIndex);
 			}break;
-			case NODE_TYPE_MATHOP_ADD:
-			case NODE_TYPE_MATHOP_SUB:
-			case NODE_TYPE_MATHOP_MUL:
-			case NODE_TYPE_MATHOP_DIV:
+			case eNodeType::eMathOpAdd:
+			case eNodeType::eMathOpSub:
+			case eNodeType::eMathOpMul:
+			case eNodeType::eMathOpDiv:
 			{
 				ExecuteMathOperators(node, current.mInputIndex, stack, stackIndex);
 			}break;
-			case NODE_TYPE_BRDF_DIFFUSE:
+			case eNodeType::eBRDFDiffuse:
 			{
 				ExecuteDiffseBRDF(node, current.mInputIndex, stack, stackIndex);
 			}
 			break;
-			case NODE_TYPE_IMAGE_SAMPLER_2D:
+			case eNodeType::eImageSampler2D:
 			{
 				float2 texCoords;
 				if (INPUT_AVAILABLE)
@@ -299,23 +284,23 @@ namespace Phoenix
 				}
 				else
 				{
-					STACK_PUSH(node.mInputs[NODE_TYPE_IMAGE_SAMPLER_2D_INPUT_UV]);
+					STACK_PUSH(node.mInputs[eImageSampler2DInputs::UV]);
 				}
 			}
 			break;
-			case NODE_TYPE_OBJ_NML:
+			case eNodeType::eObjNml:
 			{
 				//write out normal
 				///STACK_POP_F3(float4(0.5f, 0.5f, 0.5f));
 			}
 			break;
-			case NODE_TYPE_OBJ_UV0:
+			case eNodeType::eObjUV0:
 			{
 				//write out texcoords
 				//STACK_POP_F2(float4(0, 1));
 			}
 			break;
-			case NODE_TYPE_FLOAT:
+			case eNodeType::eFloat:
 			{
 				//STACK_POP_F(node.mFloat[0]);
 			}
@@ -327,7 +312,7 @@ namespace Phoenix
 	}
 
 	//Node creation
-	uint32_t MaterialSystem::CreateNode(nodeType_t type)
+	uint32_t MaterialSystem::CreateNode(eNodeType type)
 	{
 		uint32_t index = mNodes.size();
 		SharedMaterialNode node;
@@ -402,23 +387,23 @@ namespace Phoenix
 	//eLambertianBRDF
 	void MaterialSystem::SetDiffuseBRDFAlbedo(uint32_t node, uint32_t albedoNode)
 	{
-		mNodes[node].mInputs[NODE_TYPE_BRDF_DIFFUSE_INPUT_ALBEDO] = albedoNode;
+		mNodes[node].mInputs[eBRDFDiffuseInputs::eAlbedo] = albedoNode;
 	}
 	void MaterialSystem::SetDiffuseBRDFNormal(uint32_t node, uint32_t normalNode)
 	{
-		mNodes[node].mInputs[NODE_TYPE_BRDF_DIFFUSE_INPUT_NORMAL] = normalNode;
+		mNodes[node].mInputs[eBRDFDiffuseInputs::eNormal] = normalNode;
 	}
 	void MaterialSystem::SetDiffuseBRDFRoughness(uint32_t node, uint32_t roughnessNode)
 	{
-		mNodes[node].mInputs[NODE_TYPE_BRDF_DIFFUSE_INPUT_ROUGHNESS] = roughnessNode;
+		mNodes[node].mInputs[eBRDFDiffuseInputs::eRoughness] = roughnessNode;
 	}
 
 	void MaterialSystem::SetMathInputA(uint32_t node, uint32_t a)
 	{
-		mNodes[node].mInputs[NODE_TYPE_MATHOP_INPUT_A] = a;
+		mNodes[node].mInputs[eMathOpsInputs::A] = a;
 	}
 	void MaterialSystem::SetMathInputB(uint32_t node, uint32_t b)
 	{
-		mNodes[node].mInputs[NODE_TYPE_MATHOP_INPUT_B] = b;
+		mNodes[node].mInputs[eMathOpsInputs::B] = b;
 	}
 }

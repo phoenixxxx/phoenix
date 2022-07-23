@@ -69,7 +69,8 @@ namespace Phoenix
 		const char* entryPoint = "Evaluate";
 		uint32_t local = 32;
 		std::vector<KeyValuePair> defines = {
-			{"LOCAL_THREAD_COUNT", std::to_string(local)},
+			{"PRIMARY_RAY_LOCAL_SIZE", std::to_string(local)},
+			{"MAX_STACK_DEPTH", "16"}
 		};
 		auto shaderPath = mCache.Compile((ASSETS_PATH + stdstr_t("Shaders/MaterialEvaluation.hlsl")).c_str(), 
 			entryPoint,
