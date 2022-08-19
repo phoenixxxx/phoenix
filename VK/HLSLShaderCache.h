@@ -11,12 +11,6 @@
 
 #define MAX_COMPILE_CMD_LENGTH 4096
 
-struct KeyValuePair
-{
-	std::string mKey;
-	std::string mValue;
-};
-
 #define BUFSIZE 4096 
 static bool ReadFromPipe(HANDLE handle)
 {
@@ -74,9 +68,9 @@ public:
 
 		static char parameters[MAX_COMPILE_CMD_LENGTH];
 		if(headerDir)
-			sprintf_s(parameters, MAX_COMPILE_CMD_LENGTH, " -spirv -T %s -E %s %s %s -I %s", shaderModel, entryPoint, file, defs.c_str(), headerDir);
+			sprintf_s(parameters, MAX_COMPILE_CMD_LENGTH, " -spirv -fspv-reflect -T %s -E %s %s %s -I %s", shaderModel, entryPoint, file, defs.c_str(), headerDir);
 		else
-			sprintf_s(parameters, MAX_COMPILE_CMD_LENGTH, " -spirv -T %s -E %s %s %s", shaderModel, entryPoint, file, defs.c_str());
+			sprintf_s(parameters, MAX_COMPILE_CMD_LENGTH, " -spirv -fspv-reflect -T %s -E %s %s %s", shaderModel, entryPoint, file, defs.c_str());
 
 		std::size_t hash = std::hash<std::string>{}(parameters);
 		std::string filePath;
@@ -95,6 +89,7 @@ public:
 				if (hlslT < compiledT)
 				{
 					filePath = entry.path().string();
+					error = false;
 				}
 				break;
 			}
@@ -140,9 +135,10 @@ public:
 				TRUE,
 				0, NULL, NULL, &info, &processInfo))
 			{
+				WaitForSingleObject(processInfo.hProcess, INFINITE);
+
 				error = ReadFromPipe(pipeRd);
 
-				WaitForSingleObject(processInfo.hProcess, INFINITE);
 				CloseHandle(processInfo.hProcess);
 				CloseHandle(processInfo.hThread);
 

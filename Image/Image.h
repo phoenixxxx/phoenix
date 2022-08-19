@@ -3,29 +3,13 @@
 #include <Utils/VectorMath.h>
 #include <Utils/Utils.h>
 
-#define MAX_MIPS 12
-#define MAX_RESOLUTION_DIM (1 << MAX_MIPS)
+#include <SharedGPU_CPU/SharedImage.h>
 
 namespace Phoenix
 {
 	class Image
 	{
 	public:
-		enum class Format {
-			eUnknown,
-			eFloat3,
-			eFloat4,
-			eUbyte3,
-			eUbyte4,
-		};
-		enum class Filter {
-			eNearest,
-			eLinear
-		};
-		enum class Boundaries {
-			eWrap,
-			eClamp,
-		};
 		Image();
 		~Image();
 
@@ -38,9 +22,11 @@ namespace Phoenix
 
 		const Size&   GetResolution(uint32_t mip=0)const { return mMips[mip].mResolution; }
 		const byte_t* GetTexels(uint32_t mip=0)const { return mMips[mip].mTexels; }
+		size_t GetAllocationSize() { return mAllocationSize; }
+		byte_t* GetAllocation(){ return mMips[0].mTexels; }
 
-		void Write(const std::filesystem::path& filePath, uint32_t mip = 0);
-
+		void WriteToFile(const std::filesystem::path& filePath, uint32_t mip = 0);
+		void GetImageBlock(ImageBlock& block);//GPU version of the image structure
 	public:
 		static uint32_t GetTexelSize(Format format);
 		static uint32_t GetTexelDimension(Format format);

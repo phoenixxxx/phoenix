@@ -30,7 +30,7 @@ namespace Phoenix
 		struct
 		{
 			stdstr_t mName;
-			uint64_t  mStart;
+			uint64_t mStart;
 		}mGPUWorkload;
 
 		SINGLETON_METHODS(PerfTracer)

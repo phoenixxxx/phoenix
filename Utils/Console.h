@@ -71,7 +71,7 @@ namespace Phoenix
 			//Log(LogType::eInfo, "Welcome to Dear ImGui!");
 			return true;
 		}
-		~Console()
+		void Shutdown()
 		{
 			ClearLog();
 			for (int i = 0; i < History.Size; i++)

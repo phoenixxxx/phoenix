@@ -10,8 +10,8 @@
 typedef struct GPUBVHNode
 {
 	//relationship
-	uint64_t  mLeftChild;
-	uint64_t  mRightChild;
+	BVHNodeIndex  mLeftChild;
+	BVHNodeIndex  mRightChild;
 
 	//leaf node
 	uint64_t  mLeafData;
@@ -25,8 +25,8 @@ typedef struct GPUBVHNode
 typedef struct GPUBVHLightingNode
 {
 	//relationship
-	uint64_t  mLeftChild;
-	uint64_t  mRightChild;
+	BVHNodeIndex  mLeftChild;
+	BVHNodeIndex  mRightChild;
 
 	//leaf node
 	uint64_t  mLeafData;
@@ -39,5 +39,17 @@ typedef struct GPUBVHLightingNode
 	float4 mConeInfo;//XYZ:direction and W:angle of emissive cone
 	float4 mFlux;
 }GPUBVHLightingNode;
+
+
+#if defined CPU_ENVIRONMENT
+#define GPUBVHNODEINOUT GPUBVHNode&
+#else
+#define GPUBVHNODEINOUT inout GPUBVHNode
+#endif
+
+static inline bool GPUBVHNodeIsLeaf(GPUBVHNODEINOUT node)
+{
+	return (node.mLeafData != INVALID_INDEX);
+}
 
 #endif//GPU_SHARED_HIERARCHY_H

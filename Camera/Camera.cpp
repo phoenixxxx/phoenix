@@ -11,6 +11,9 @@ namespace Phoenix {
         float4x4::MakeIdentity(m_view_matrix);
         float4x4::MakeIdentity(m_projection_matrix);
         float4x4::MakeIdentity(m_view_projection_matrix);
+
+        mFocusDistance = 1000;//1 meter
+        mFStop = 11;//very small Depth of Field
     }
 
     void Camera::LookAt(const float3& eye, const float3& center, const float3& up)
@@ -87,19 +90,37 @@ namespace Phoenix {
     {
         m_fov_degrees = fov_degrees;
         m_aspect = aspect;
-        m_near_clip = near_clip;
-        m_far_clip = far_clip;
 
         m_projection_matrix = float4x4::MakePerspective(
             m_fov_degrees * (Pi/180),
             m_aspect,
-            m_near_clip,
-            m_far_clip);
+            near_clip,
+            far_clip);
 
         m_view_plane_width  = 2 * (1.0f / m_projection_matrix.m[0]);
         m_view_plane_height = 2 * (1.0f / m_projection_matrix.m[9]);//remember Y and Z flipped
 
         m_view_projection_matrix = m_projection_matrix * m_view_matrix;
+    }
+
+    void Camera::SetSensorDimension(uint32_t sensorWidth, const uint2& resolution)
+    {
+        float aspect = resolution.x / float(resolution.y);
+        mSensorDimension.x = sensorWidth;
+        mSensorDimension.y = static_cast<uint32_t>(mSensorDimension.x / aspect);
+
+        mSensorResolution = resolution;
+    }
+
+    void Camera::SetFocalLength(uint32_t l)
+    {
+        mFocalLength = l;
+        RecomputeLenseDiameter();
+    }
+    void Camera::SetFStop(float stop)
+    {
+        mFStop = stop;
+        RecomputeLenseDiameter();
     }
 
     void Camera::Rotate(float dx, float dz)
