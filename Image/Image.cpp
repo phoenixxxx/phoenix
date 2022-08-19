@@ -14,6 +14,7 @@ namespace Phoenix
 	{
 		mLog2LargestDim = 0;
 		mAllocationSize = 0;
+		mAllocationResolution = { 0, 0 };
 		mFormat = Format::eUnknown;
 		std::memset(mMips, 0, sizeof(mMips));
 	}
@@ -62,7 +63,22 @@ namespace Phoenix
 		}
 	}
 
-	void Image::Write(const std::filesystem::path& filePath, uint32_t mip)
+	void Image::GetImageBlock(ImageBlock& block)
+	{
+		block.mFormat = mFormat;
+		block.mMipsCount = GetMipLevelCounts();
+		uint32_t offset = 0;
+		uint32_t texelSize = GetTexelSize(mFormat);
+		for (uint32_t iMip = 0; iMip < GetMipLevelCounts(); ++iMip)
+		{
+			const auto& res = mMips[iMip].mResolution;
+			block.mMips[iMip].mResolution = res;
+			block.mMips[iMip].mTexelsOffset = offset;
+			offset += texelSize * res.mWidth * res.mHeight;
+		}
+	}
+
+	void Image::WriteToFile(const std::filesystem::path& filePath, uint32_t mip)
 	{
 		WriteToFile(filePath, mMips[mip].mTexels, mMips[mip].mResolution, mFormat);
 	}

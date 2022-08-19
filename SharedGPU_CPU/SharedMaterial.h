@@ -82,4 +82,6 @@ struct SharedMaterialNode
 	stack[stackIndex].mInputAvailable = 0; \
 }                                          \
 
+// stack[stackIndex].mData[0] = asuint(v); <-- v is float
+
 #endif//SharedGPU_CPU_Material_H

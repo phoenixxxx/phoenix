@@ -72,7 +72,7 @@ namespace Phoenix
 		for (unsigned int i = 0; i < num_channels; i++)
 			arhosekskymodelstate_free(skymodel_state[i]);
 
-		mSurface.Initialize({ uint32_t(mPhi), uint32_t(mTheta) }, Image::Format::eFloat4, imgRaw.data());
+		mSurface.Initialize({ uint32_t(mPhi), uint32_t(mTheta) }, Format::eFloat4, imgRaw.data());
 		//mSurface.Initialize({ IMG_COMPONENT_TYPE_FLOAT32, 3 }, { uint32_t(mPhi), uint32_t(mTheta) }, img);
 
 		ComputePDF();
@@ -87,7 +87,7 @@ namespace Phoenix
 
 	//phi[0 : 2Pi]
 	//theta[0(top) : Pi(bottom)]
-	float4 Sky::Sample(float phi, float theta, Image::Filter filter)
+	float4 Sky::Sample(float phi, float theta, Filter filter)
 	{
 		float2 coords((phi / TwoPi), (theta / Pi));
 		//int x = static_cast<int>((phi/TwoPi) * mPhi);
@@ -136,6 +136,6 @@ namespace Phoenix
 
 	void Sky::RenderToFile(const char* outfile)
 	{
-		mSurface.Write(outfile);
+		mSurface.WriteToFile(outfile);
 	}
 }

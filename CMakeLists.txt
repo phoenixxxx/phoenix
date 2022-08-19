@@ -54,6 +54,11 @@ set(MATERIAL_DIR "${PROJECT_SOURCE_DIR}/Material")
 file(GLOB MATERIAL_SRC "${MATERIAL_DIR}/*.cpp" "${MATERIAL_DIR}/*.h")
 source_group("Material" FILES ${MATERIAL_SRC})
 
+# Path Tracer
+set(PATHTRACER_DIR "${PROJECT_SOURCE_DIR}/PathTracer")
+file(GLOB PATHTRACER_SRC "${PATHTRACER_DIR}/*.cpp" "${PATHTRACER_DIR}/*.h")
+source_group("PathTracer" FILES ${PATHTRACER_SRC})
+
 # Scenario
 set(SCENARIO_DIR "${PROJECT_SOURCE_DIR}/Scenario")
 file(GLOB SCENARIO_SRC "${SCENARIO_DIR}/*.cpp" "${SCENARIO_DIR}/*.h")
@@ -97,6 +102,8 @@ file(GLOB TINYOBJLOADER_SRC "${THIRDPARTY_DIR}/tinyobjloader/*.cc" "${THIRDPARTY
 source_group("ThirdParty/tinyobjloader" FILES ${TINYOBJLOADER_SRC})
 file(GLOB TINYXML2_SRC "${THIRDPARTY_DIR}/tinyxml2/*.cpp" "${THIRDPARTY_DIR}/tinyxml2/*.h")
 source_group("ThirdParty/tinyxml2" FILES ${TINYXML2_SRC})
+file(GLOB SPIRV_REFLECT_SRC "${THIRDPARTY_DIR}/spirv_reflect/*.c" "${THIRDPARTY_DIR}/spirv_reflect/*.h")
+source_group("ThirdParty/spirv_reflect" FILES ${SPIRV_REFLECT_SRC})
 
 # Vulkan SDK
 if(NOT DEFINED VK_SDK_PATH)
@@ -114,12 +121,14 @@ link_directories(${VK_SDK_PATH}/Lib)
 add_compile_definitions(DXC_PATH="${DXC_PATH}")
 add_compile_definitions(ASSETS_PATH="${PROJECT_SOURCE_DIR}/Assets/")
 add_compile_definitions(SHARED_GPU_CPU="${PROJECT_SOURCE_DIR}/SharedGPU_CPU/")
+add_compile_definitions(SPIRV_REFLECT_USE_SYSTEM_SPIRV_H)
 
 add_executable(${PROJECT_NAME} WIN32 ${BVH_SRC} ${BVHLIGHTING_SRC} ${CAMERA_SRC} 
 ${D3D11_SRC} ${VK_SRC} ${D3D11LINERENDERER_SRC} ${D3D11MESHRENDERER_SRC} 
-${IMAGE_SRC} ${MATERIAL_SRC} ${SCENARIO_SRC} ${SHARED_GPU_CPU_SRC} ${SKYILLUM_SRC} 
+${IMAGE_SRC} ${MATERIAL_SRC} ${PATHTRACER_SRC} ${SCENARIO_SRC} ${SHARED_GPU_CPU_SRC} ${SKYILLUM_SRC} 
 ${UTILS_SRC} ${WINDOW_SRC} 
 ${IMGUI_SRC} ${JSON_SRC} ${MINIZ_SRC} ${SKY_SRC} ${STBIMAGE_SRC} ${TINYEXR_SRC} ${TINYOBJLOADER_SRC} ${TINYXML2_SRC}
+${SPIRV_REFLECT_SRC}
 main.cpp)
 
 TARGET_LINK_LIBRARIES(${PROJECT_NAME} vulkan-1.lib)

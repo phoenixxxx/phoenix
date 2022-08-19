@@ -5,6 +5,14 @@
 #include <vector>
 #include "Types.h"
 
+#define DEFINE_HANDLE(object) typedef struct object##_T *object;
+#define ISPOT(x) ((x&(x-1))==0)
+#define ISALIGNED(x, pot) ((x & (pot-1)) == 0)
+#define ALIGN(x, pot) ((x+(pot-1))&(~(pot-1)))
+
+#define ARRAYCOUNT(arr) (sizeof(arr)/sizeof(arr[0]))
+#define TOSTRING(str) (#str)
+
 namespace Phoenix
 {
     static std::vector<byte_t> LoadFile(std::filesystem::path filePath)

@@ -10,6 +10,8 @@
 #include <SkyIllumination/Sky.h>
 #include <ThirdParty/tinyobjloader/tiny_obj_loader.h>
 
+#include <PathTracer/PathTracer.h>
+
 namespace Phoenix
 {
 	class Visualize : public Scenario
@@ -104,5 +106,7 @@ namespace Phoenix
 			float3 mPoint;
 			float3 mNormal;
 		}mSurface;
+
+		PathTracer mPathTracer;
 	};
 }

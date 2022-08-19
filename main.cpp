@@ -6,7 +6,6 @@
 #include <Utils/Console.h>
 
 #include <Scenario/Visualize.h>
-#include <Scenario/MaterialEditor.h>
 #include <Utils/Event.h>
 
 #include <VK/VKManager.h>
@@ -75,12 +74,11 @@ void MouseWheel(const Phoenix::MouseInfo& info)
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd)
-{
+{    
 #ifdef CONSOLE
     AllocConsole();
     PipeToSTDOut();
 #endif
-
     Phoenix::Window::Instance()->Initialize(hInstance, "Phoenix (D3D11)", 800, 600);// , Resize, MouseClick, MouseDrag, MouseWheel);
 
     Phoenix::Window::Instance()->mResizeEvent += Phoenix::Window::ResizeEvent_t::Callback(&Resize);
@@ -96,14 +94,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     Phoenix::Console::Instance()->Initialize();
     Phoenix::VKManager::Instance()->Initialize();
 
-    std::vector<Phoenix::Scenario*> scenarios = {new Phoenix::Visualize(), new Phoenix::MaterialEditor()};
+    std::vector<Phoenix::Scenario*> scenarios = {new Phoenix::Visualize()};
     std::vector<stdstr_t> scenarioNames;
     for (auto sc : scenarios)
     {
         sc->Initialize();
         scenarioNames.push_back(sc->Name());
     }
-    uint32_t currentScenarioIndex = 0;
+    uint32_t currentScenarioIndex = 0;//default to RT
     currentScenario = scenarios[currentScenarioIndex];//get current scenario
 
     //Show calls resize, calls scenario resize, calls camera perspetive (we need a valid scenario)
@@ -151,5 +149,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     Phoenix::D3D11LineRenderer::Instance()->Shutdown();
     Phoenix::D3D11MeshRenderer::Instance()->Shutdown();
     Phoenix::D3D11Manager::Instance()->Shutdown();
+    Phoenix::VKManager::Instance()->Shutdown();
 }
  

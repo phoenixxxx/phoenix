@@ -455,17 +455,22 @@ namespace Phoenix
 			items[instanceIndex]->mCentroid = items[instanceIndex]->mBox.Centroid();
 			items[instanceIndex]->mLeafData = instanceIndex;
 
-			mInstances.push_back({ identity, identity, identity, instanceIndex });
+			mInstances.push_back({ identity, identity, identity, GeometryType::eTriangularMesh, instanceIndex });
 			mInstanceVolumes.push_back(transformedVolume);
 
 			instanceIndex++;
 		}
-		AABB rootVolume;
-		bvhBuilder.Clear();
-		BVHNodeIndex rootIndex = bvhBuilder.CreateVolumes(rootVolume, items, BVH::eSurfaceAreaHeuristic);
-		mTopLevel = bvhBuilder.GetNodes();
-		tm.Stop();
-		Console::Instance()->Log(Console::LogType::eInfo, "Top level BVH building time: %d [ms]\n", (int)tm.GetMilliseconds());
+
+		//Compute the BVH
+		if (items.size() > 0)
+		{
+			AABB rootVolume;
+			bvhBuilder.Clear();
+			BVHNodeIndex rootIndex = bvhBuilder.CreateVolumes(rootVolume, items, BVH::eSurfaceAreaHeuristic);
+			mTopLevel = bvhBuilder.GetNodes();
+			tm.Stop();
+			Console::Instance()->Log(Console::LogType::eInfo, "Top level BVH building time: %d [ms]\n", (int)tm.GetMilliseconds());
+		}
 	}
 
 	void Visualize::SceneExportHander()
@@ -923,7 +928,6 @@ namespace Phoenix
 		ImGui::SliderFloat("F-Stop", &mOptics.mFStop, 0, 11, "%.1f");
 		ImGui::SliderInt("Focal Length", &mOptics.mFocalLength, 16, 100);
 
-
 		if (rotate)
 		{
 			D3D11MeshRenderer::Instance()->FlushCache();
@@ -1235,7 +1239,7 @@ namespace Phoenix
 		int stackIndex = 0;
 		//push on the stack
 
-		uint32_t meshIndex = mInstances[instanceIndex].mMeshEntry;
+		uint32_t meshIndex = mInstances[instanceIndex].mGeometryIndex;
 		BVHNodeIndex root = mMeshes[meshIndex].mEntry.mRootBVH;
 		stack[stackIndex] = root;//push BVH root
 
