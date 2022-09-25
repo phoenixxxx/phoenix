@@ -72,6 +72,13 @@ namespace Phoenix
 		std::vector<Mesh> mMeshes;
 
 		std::vector<Instance> mInstances;
+		struct SRT
+		{
+			float mScale;
+			float3 mRotate;
+			float3 mTranslate;
+		};
+		std::vector<SRT> mInstanceSRTs;
 
 
 		BVHLighting mBVHLighting;

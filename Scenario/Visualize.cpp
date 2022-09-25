@@ -380,6 +380,7 @@ namespace Phoenix
 		mBottomLevels.clear();
 		mTopLevel.clear();
 		mInstances.clear();
+		mInstanceSRTs.clear();
 		mInstanceVolumes.clear();
 
 		std::vector<BVH::ConstructionItem> itemsMemory;
@@ -456,6 +457,7 @@ namespace Phoenix
 			items[instanceIndex]->mLeafData = instanceIndex;
 
 			mInstances.push_back({ identity, identity, identity, GeometryType::eTriangularMesh, instanceIndex });
+			mInstanceSRTs.push_back({ {1}, {0,0,0}, {0,0,0} });
 			mInstanceVolumes.push_back(transformedVolume);
 
 			instanceIndex++;
@@ -815,8 +817,6 @@ namespace Phoenix
 		D3D11LineRenderer::Instance()->DrawLine(Ow, Ow + float3(0, 0.05f, 0), float3(0, 1, 0));
 		D3D11LineRenderer::Instance()->DrawLine(Ow, Ow + float3(0, 0, 0.05f), float3(0, 0, 1));
 
-		float4x4 identity;
-		float4x4::MakeIdentity(identity);
 		uint32_t iMesh = 0;
 		for (auto& mesh : mMeshes)
 		{
@@ -826,7 +826,8 @@ namespace Phoenix
 				//get the subpart of the index and vertex buffers for this particular mesh
 				int3* meshIndexBuffer = &(mIndexBuffer[mesh.mEntry.mIndexOffset]);
 				Vertex* meshVertexBuffer = &(mVertexBuffer[mesh.mEntry.mVertexOffset]);
-				D3D11MeshRenderer::Instance()->DrawMesh(meshVertexBuffer, mesh.mVertexCount, meshIndexBuffer, mesh.mFaceCount, identity, identity, color);
+				D3D11MeshRenderer::Instance()->DrawMesh(meshVertexBuffer, mesh.mVertexCount, meshIndexBuffer, mesh.mFaceCount, mInstances[iMesh].mToWorldGlobal,
+					mInstances[iMesh].mToWorldGlobalNormal, color);
 			}
 			if (mesh.mBVHVisible)
 			{
@@ -1023,6 +1024,36 @@ namespace Phoenix
 					ImGui::Checkbox("Visible", &mMeshes[iMesh].mVisible);
 
 					ImGui::TreePop();
+				}
+			}
+		}
+
+		//xform
+		{
+			if (mSurface.mHit)
+			{
+				auto& srt = mInstanceSRTs[mSurface.mHitInstanceIndex];
+				ImGui::Separator();
+				bool xFormUpdated = ImGui::SliderFloat("Model Matrix Scale", &srt.mScale, 1.0f, 10.0f);
+				xFormUpdated |= ImGui::SliderFloat3("Model Matrix Rotation", &srt.mRotate.x, 0.0f, 360.0f);
+				xFormUpdated |= ImGui::SliderFloat3("Model Matrix Translation", &srt.mTranslate.x, 0.0f, 1000.0f);
+
+				//update the xform
+				if (xFormUpdated)
+				{
+					float4x4 scale, rotate, translate;
+					float4x4 scaleInv, rotateInv, translateInv;
+					float4x4::MakeScale(scale, { srt.mScale, srt.mScale, srt.mScale });
+					float4x4::MakeRotation(rotate, Math::ToRadians(srt.mRotate));
+					float4x4::MakeTranslation(translate, srt.mTranslate);
+
+					float4x4::MakeScale(scaleInv, { 1.0f/srt.mScale, 1.0f/srt.mScale, 1.0f/srt.mScale });
+					float4x4::MakeRotation(rotateInv, -Math::ToRadians(srt.mRotate));
+					float4x4::MakeTranslation(translateInv, -srt.mTranslate);
+
+					mInstances[mSurface.mHitInstanceIndex].mToWorldGlobal = translate * rotate * scale;
+					mInstances[mSurface.mHitInstanceIndex].mToWorldGlobalNormal = rotate;
+					mInstances[mSurface.mHitInstanceIndex].mToInstanceLocal = scaleInv * rotateInv * translateInv;
 				}
 			}
 		}

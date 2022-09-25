@@ -25,14 +25,6 @@ namespace Phoenix
 			std::vector<Instance>& instances,
 			std::vector<ProceduralGeometry>& procGeo);
 		void UpdateCameraData(Camera& camera);
-		/*
-		* 		pCam->mFocalLength = mCamera.GetFocalLength() / 1000.0f;//to meter
-		pCam->mFocusDistance = mCamera.GetFocusDistance() / 1000.0f;//to meter
-		pCam->mLenseRadius = 0;// mCamera.GetLenseDiameter() / 2.0f / 1000.0f;//to meter
-		mCamera.GetInverseViewMatrix(pCam->mTransform);
-		pCam->mSensorDimension = { mCamera.GetSensorDimension().x / 1000.0f, mCamera.GetSensorDimension().y / 1000.0f };
-		pCam->mSensorResolution = mCamera.GetSensorResolution();
-		*/
 
 	private:
 		VKManager::Device mDevice;

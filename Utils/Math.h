@@ -49,6 +49,10 @@ namespace Phoenix
 		{
 			return (PiOver180 * degrees);
 		}
+		inline static float3 ToRadians(float3 degrees)
+		{
+			return { ToRadians(degrees.x), ToRadians(degrees.y) , ToRadians(degrees.z) };
+		}
 		inline static float ToDegrees(float radians)
 		{
 			return (InvPiOver180 * radians);
